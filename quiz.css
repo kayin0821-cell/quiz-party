@@ -158,6 +158,8 @@ input.pin { font-size: 34px; letter-spacing: .3em; text-align: center; font-vari
 .waiting-dots span:nth-child(2) { animation-delay: .15s; } .waiting-dots span:nth-child(3) { animation-delay: .3s; }
 @keyframes bob { 0%, 60%, 100% { transform: translateY(0); opacity: .4 } 30% { transform: translateY(-8px); opacity: 1 } }
 
+.prize-note { background: var(--marker); color: var(--char); border-radius: 14px; padding: 10px 14px; margin: 12px 0 0; font-size: 17px; line-height: 1.5; text-align: center; }
+.prize-note.big { font-size: 20px; padding: 14px 16px; }
 .center { text-align: center; }
 .hidden { display: none !important; }
 .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%);

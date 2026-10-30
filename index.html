@@ -10,13 +10,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
-<link rel="stylesheet" href="quiz.css?v=1">
+<link rel="stylesheet" href="quiz.css?v=2">
 </head>
 <body>
 <main class="wrap" id="app" aria-live="polite"></main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="quiz.js?v=1"></script>
+<script src="quiz.js?v=2"></script>
 <script>
 (function () {
   const { sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, store, SHAPES, grillHTML, updateGrill, rankOf, podiumHTML, fastestHTML } = QP;
@@ -271,6 +271,7 @@
       <section class="card">
         <h3>這題最快答對</h3>
         ${fastestHTML(rv.fastest, me.player_id)}
+        ${rv.fastest && rv.fastest[0] && rv.fastest[0].id === me.player_id ? '<p class="prize-note">🎁 你是這題最快答對！獎品最後一起發</p>' : ''}
       </section>
       <p class="center small muted" style="margin-top:14px">${game.q_index + 1 < game.q_total ? '下一題出現時，畫面會自動跳出並震動提醒。' : '這是最後一題，等主持人揭曉總排名。'}</p>`;
     if (a && !a.late) (mineOk ? sfx.right : sfx.wrong)();
@@ -285,7 +286,8 @@
 
   async function viewEnded() {
     app.innerHTML = `${header()}<section class="card center"><h1 class="title">遊戲結束</h1><p class="muted">正在統計名次…</p></section>`;
-    const players = await fetchPlayers();
+    const [players, prizes] = await Promise.all([fetchPlayers(), sb.rpc('quiz_my_prizes', { p_player: me.player_id, p_token: me.token })]);
+    const nPrize = (prizes && prizes.data) || 0;
     const mine = players.find((p) => p.id === me.player_id);
     const r = rankOf(players, me.player_id);
     sfx.fanfare();
@@ -294,7 +296,8 @@
         <h1 class="title"><span class="mark">遊戲結束</span></h1>
         ${podiumHTML(players, me.player_id)}
         ${mine ? `<p style="font-size:20px">你是第 <b>${r}</b> 名，${mine.score} 分，答對 ${mine.correct_count} 題</p>` : ''}
-        <p class="muted">謝謝參加！小禮物請找主持人領取。</p>
+        ${nPrize ? `<p class="prize-note big">🎁 你這場拿到 ${nPrize} 份小禮物<br><span class="small">獎品最後統一發放</span></p>` : ''}
+        <p class="muted">謝謝參加！</p>
       </section>
       <p class="center" style="margin-top:16px"><button class="btn ghost" id="again" type="button">加入下一場</button></p>`;
     $('#again').onclick = () => leave();

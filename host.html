@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
-<link rel="stylesheet" href="quiz.css?v=1">
+<link rel="stylesheet" href="quiz.css?v=2">
 <style>
   .sets { display: grid; gap: 12px; }
   .set-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -48,6 +48,15 @@
   .preview { border-left: 4px solid var(--marker); padding: 4px 0 4px 12px; margin: 10px 0; }
   .gift { font-size: 15px; color: var(--char); margin-top: 4px; }
   .bars .opt { min-height: 54px; font-size: 17px; }
+  .hist { border-top: 2px dashed var(--line); padding-top: 14px; margin-top: 14px; }
+  ul.prize { list-style: none; padding: 0; margin: 6px 0 8px; display: grid; gap: 6px; }
+  ul.prize li { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--marker); font-size: 18px; }
+  ul.prize li.given { background: var(--paper-2); color: var(--ink-soft); }
+  ul.prize li.given .who { text-decoration: line-through; }
+  ul.prize .cnt { font-variant-numeric: tabular-nums; }
+  ul.prize .given-box { margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 15px; cursor: pointer; white-space: nowrap; }
+  ul.prize .given-box input { width: 22px; height: 22px; accent-color: var(--ok); }
+  details summary { cursor: pointer; color: var(--ink-soft); padding: 4px 0; }
   #stage { margin-top: 14px; }
   @media (min-width: 860px) {
     #stage { margin-top: 0; }
@@ -62,7 +71,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="quiz.js?v=1"></script>
+<script src="quiz.js?v=2"></script>
 <script>
 (function () {
   const { sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, toast, store, SHAPES, LETTERS, grillHTML, updateGrill, podiumHTML, fastestHTML } = QP;
@@ -125,13 +134,19 @@
           : '<p class="muted">還沒有題庫。按「新增題庫」開始出題。</p>'}
         </div>
       </section>
-      <section id="startBox"></section>`;
+      <section id="startBox"></section>
+      <section class="card" style="margin-top:14px">
+        <div class="row spread"><h2>🎁 得獎紀錄</h2><button class="btn ghost small" id="copyAll" type="button" hidden>複製全部名單</button></div>
+        <p class="muted small" style="margin:6px 0 0">每題最快答對的人。獎品最後一起發，發完勾「已發」。</p>
+        <div id="history"><p class="muted small">載入中…</p></div>
+      </section>`;
     bindTop();
     $('#newSet').onclick = async () => {
       const { data, error } = await sb.from('quiz_sets').insert({ title: '新的題庫', questions: [] }).select().single();
       if (error) return toast(errMsg(error));
       showEditor(data);
     };
+    loadHistory();
     app.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => showEditor(sets.find((s) => s.id === b.dataset.edit)));
     app.querySelectorAll('[data-start]').forEach((b) => b.onclick = () => showStart(sets.find((s) => s.id === b.dataset.start)));
     app.querySelectorAll('[data-resume]').forEach((b) => b.onclick = () => openConsole(b.dataset.resume));
@@ -161,6 +176,61 @@
       if (error) { $('#go').disabled = false; $('#startMsg').textContent = errMsg(error); return; }
       openConsole(data[0].game_id);
     };
+  }
+
+  // ---------- 得獎紀錄 ----------
+  const fmtDate = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  function winnersText(title, when, w) {
+    const lines = w.people.map((p) => `${p.nick} ×${p.count}${p.given ? '（已發）' : ''}`);
+    return `【${title}】${when ? ' ' + when : ''}\n${lines.join('\n') || '（沒有得獎者）'}`;
+  }
+  function winnersHTML(gameId, w) {
+    if (!w.people.length) return '<p class="muted small">這場沒有人答對任何一題。</p>';
+    const total = w.people.reduce((n, p) => n + p.count, 0);
+    const left = w.people.filter((p) => !p.given).reduce((n, p) => n + p.count, 0);
+    return `<p class="small" style="margin:6px 0">共 ${total} 份，${left ? `還有 <b>${left}</b> 份未發` : '全部發完了'}</p>
+      <ul class="prize">${w.people.map((p) => `<li class="${p.given ? 'given' : ''}"><span class="who">${esc(p.nick)}</span><span class="cnt">×${p.count}</span>
+        <label class="given-box"><input type="checkbox" data-give="${gameId}|${p.player_id}" ${p.given ? 'checked' : ''}> 已發</label></li>`).join('')}</ul>
+      <details class="small"><summary>看每題是誰拿到</summary><ol class="rank">${w.questions.map((q) => `<li><span class="n">${q.q_index + 1}</span><span style="flex:1">${esc(q.q)}</span><span>${esc(q.nick)}</span></li>`).join('')}</ol></details>`;
+  }
+  function bindGive(root, after) {
+    root.querySelectorAll('[data-give]').forEach((cb) => cb.onchange = async () => {
+      const [g, pl] = cb.dataset.give.split('|');
+      cb.disabled = true;
+      const { error } = await sb.rpc('quiz_host_mark_given', { p_game: g, p_player: pl, p_given: cb.checked });
+      cb.disabled = false;
+      if (error) { cb.checked = !cb.checked; return toast(errMsg(error)); }
+      cb.closest('li').classList.toggle('given', cb.checked);
+      if (after) after();
+    });
+  }
+  async function loadWinners(gameId, box, title) {
+    const { data, error } = await sb.rpc('quiz_host_winners', { p_game: gameId });
+    if (!box.isConnected) return;
+    if (error) { box.innerHTML = `<div class="msg err">${esc(errMsg(error))}</div>`; return; }
+    box.innerHTML = winnersHTML(gameId, data) + (data.people.length ? `<p><button class="btn ghost small" data-copyw type="button">複製得獎名單</button></p>` : '');
+    bindGive(box, () => loadWinners(gameId, box, title));
+    const cp = box.querySelector('[data-copyw]'); if (cp) cp.onclick = () => copy(winnersText(title, '', data), '已複製得獎名單');
+  }
+  async function loadHistory() {
+    const box = $('#history'); if (!box) return;
+    const { data, error } = await sb.rpc('quiz_host_history');
+    if (!box.isConnected) return;
+    if (error) { box.innerHTML = `<div class="msg err">${esc(errMsg(error))}</div>`; return; }
+    if (!data.length) { box.innerHTML = '<p class="muted small" style="margin-top:10px">還沒有紀錄。開場出題後，得獎者會自動記在這裡。</p>'; return; }
+    box.innerHTML = data.map((g) => `<div class="hist">
+        <div class="row spread"><div><b>${esc(g.title)}</b><div class="small muted">${fmtDate(g.created_at)}・PIN ${g.pin}・${g.player_count} 人${g.state !== 'ended' ? '・<span style="color:var(--pink)">進行中</span>' : ''}</div></div>
+        <button class="iconbtn" data-delgame="${g.id}" type="button" aria-label="刪除這場紀錄" title="刪除這場紀錄（例如測試場）">✕</button></div>
+        ${winnersHTML(g.id, g.winners)}</div>`).join('');
+    bindGive(box, loadHistory);
+    box.querySelectorAll('[data-delgame]').forEach((b) => b.onclick = async () => {
+      if (!confirm('刪除這一場的所有紀錄（含得獎名單）？適合用來清掉測試場。刪除後無法復原。')) return;
+      const { error } = await sb.rpc('quiz_host_delete_game', { p_game: b.dataset.delgame });
+      if (error) return toast(errMsg(error));
+      showHome();
+    });
+    const all = $('#copyAll');
+    if (all) { all.hidden = false; all.onclick = () => copy(data.slice().reverse().map((g) => winnersText(g.title, fmtDate(g.created_at), g.winners)).join('\n\n'), '已複製全部得獎名單'); }
   }
 
   // ---------- 出題編輯 ----------
@@ -307,7 +377,7 @@
       sb.rpc('quiz_host_questions', { p_game: gameId }),
     ]);
     if (error || e2) { toast(errMsg(error || e2)); return showHome(); }
-    C = { id: gameId, game, questions, players: [], viewKey: '', revealing: false, ready: store.get('quizparty:ready') ?? 10 };
+    C = { id: gameId, game, questions, players: [], viewKey: '', revealing: false, ready: [5, 10, 15].includes(store.get('quizparty:ready')) ? store.get('quizparty:ready') : 10 };
     C.channel = sb.channel('host-' + gameId)
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quiz_games', filter: 'id=eq.' + gameId }, (p) => setGame(p.new))
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quiz_players', filter: 'game_id=eq.' + gameId }, () => loadPlayers())
@@ -391,10 +461,10 @@
   }
 
   function readySeg() {
-    const opts = [[3, '3 秒'], [10, '10 秒'], [30, '30 秒']];
+    const opts = [[5, '5 秒'], [10, '10 秒'], [15, '15 秒']];
     return `<div class="row" style="margin-top:12px"><span class="small muted">出題後倒數</span><div class="seg" role="group" aria-label="出題後倒數秒數">
       ${opts.map(([v, l]) => `<button type="button" data-ready="${v}" aria-pressed="${C.ready === v}">${l}</button>`).join('')}</div></div>
-      <p class="small muted" style="margin:6px 0 0">不定期出題時建議 10–30 秒，讓同仁有時間拿起手機；倒數期間題目先顯示、還不能作答。</p>`;
+      <p class="small muted" style="margin:6px 0 0">不定期出題時建議 10–15 秒，讓同仁有時間拿起手機；倒數期間題目先顯示、還不能作答。</p>`;
   }
   function bindReady() {
     app.querySelectorAll('[data-ready]').forEach((b) => b.onclick = () => {
@@ -472,7 +542,7 @@
         ${rv.note ? `<p class="muted">${esc(rv.note)}</p>` : ''}
         <h3 style="margin-top:18px">最快答對</h3>
         ${fastestHTML(rv.fastest)}
-        ${rv.fastest && rv.fastest.length ? `<p class="gift">🎁 第 1 名可以來領小禮物</p>` : ''}
+        ${rv.fastest && rv.fastest.length ? `<p class="gift">🎁 ${esc(rv.fastest[0].nick)} 已記入得獎名單，獎品最後一起發</p>` : ''}
         <h3 style="margin-top:18px">目前總分前 5 名</h3>
         <ol class="rank">${C.players.slice(0, 5).map((p, i) => `<li><span class="n">${i + 1}</span><span>${esc(p.nickname)}</span><span class="s">${p.score}</span></li>`).join('')}</ol>
         ${isLast ? '' : nextPreview() + readySeg()}
@@ -485,8 +555,11 @@
       st.innerHTML = `<h2 class="center"><span class="mark">總排名</span></h2>
         ${podiumHTML(C.players)}
         <ol class="rank">${C.players.map((p, i) => `<li><span class="n">${i + 1}</span><span>${esc(p.nickname)}</span><span class="small muted">答對 ${p.correct_count}</span><span class="s">${p.score}</span></li>`).join('')}</ol>
+        <h3 style="margin-top:22px">🎁 這場得獎名單</h3>
+        <div id="winBox"><p class="muted small">整理中…</p></div>
         <div class="row" style="margin-top:16px"><button class="btn" id="homeBtn" type="button">回題庫，開下一場</button></div>`;
       $('#homeBtn').onclick = showHome;
+      loadWinners(C.id, $('#winBox'), g.title);
       if (!C.fanfared) { C.fanfared = true; sfx.fanfare(); }
     }
   }
