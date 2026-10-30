@@ -1,0 +1,516 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf4e2">
+<title>搶答派對・主持</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8D%96%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
+<link rel="stylesheet" href="quiz.css?v=1">
+<style>
+  .sets { display: grid; gap: 12px; }
+  .set-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .set-item .info { flex: 1 1 200px; min-width: 0; }
+  .set-item h3 { font-size: 20px; overflow-wrap: anywhere; }
+  .tag { display: inline-block; font-size: 13px; padding: 2px 10px; border-radius: 999px; background: var(--paper-2); color: var(--char); }
+  .tag.live { background: var(--pink); color: #fff; }
+
+  .qedit { background: #fff; border: 2px solid var(--line); border-radius: 16px; padding: 14px; }
+  .qedit + .qedit { margin-top: 12px; }
+  .qedit .qhead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .qedit .qhead .no { font-size: 15px; color: var(--ink-soft); margin-right: auto; }
+  .qedit textarea.text { min-height: 64px; resize: vertical; font-size: 17px; }
+  .optline { display: flex; align-items: center; gap: 8px; margin-top: 8px; }
+  .optline .shape { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 15px; }
+  .optline input.text { font-size: 16px; padding: 9px 12px; }
+  .optline label.correct { flex: none; display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--ink-soft); white-space: nowrap; }
+  .optline label.correct input { width: 20px; height: 20px; accent-color: var(--ok); }
+  .qmeta { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .qmeta select.text { width: auto; font-size: 15px; padding: 8px 10px; }
+  .qmeta input.text { flex: 1 1 200px; font-size: 15px; padding: 8px 12px; }
+  .iconbtn { min-width: 38px; min-height: 38px; border-radius: 10px; border: 2px solid var(--line); background: var(--card); font-size: 15px; }
+  .savebar { position: sticky; bottom: 0; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); background: linear-gradient(transparent, var(--paper) 30%); }
+
+  .pinbox { display: grid; grid-template-columns: 1fr; gap: 12px; justify-items: center; text-align: center; }
+  .pinnum { font-size: 52px; letter-spacing: .1em; line-height: 1; color: var(--char); font-variant-numeric: tabular-nums; }
+  .qr { width: min(220px, 70vw); aspect-ratio: 1; background: #fff; border-radius: 12px; padding: 8px; border: 2px solid var(--ink); }
+  .qr img, .qr svg { width: 100%; height: 100%; display: block; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; max-height: 160px; overflow: auto; }
+  .chip { border: 1.5px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 10px; font-size: 14px; }
+  .seg { display: inline-flex; border: 2px solid var(--ink); border-radius: 12px; overflow: hidden; }
+  .seg button { border: 0; background: transparent; padding: 8px 12px; font-size: 15px; min-height: 40px; }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+  .answered { font-size: 22px; }
+  .answered b { font-size: 34px; color: var(--char); font-variant-numeric: tabular-nums; }
+  .preview { border-left: 4px solid var(--marker); padding: 4px 0 4px 12px; margin: 10px 0; }
+  .gift { font-size: 15px; color: var(--char); margin-top: 4px; }
+  .bars .opt { min-height: 54px; font-size: 17px; }
+  #stage { margin-top: 14px; }
+  @media (min-width: 860px) {
+    #stage { margin-top: 0; }
+    .console { display: grid; grid-template-columns: 340px 1fr; gap: 16px; align-items: start; }
+    .console .card + .card { margin-top: 0; }
+    .console .side .card + .card { margin-top: 14px; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap wide" id="app"></main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="quiz.js?v=1"></script>
+<script>
+(function () {
+  const { sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, toast, store, SHAPES, LETTERS, grillHTML, updateGrill, podiumHTML, fastestHTML } = QP;
+  const app = $('#app');
+  const DOMAIN = '@players.taiwan3d.app';
+  let user = null;
+
+  const playerURL = (pin) => new URL('index.html?pin=' + pin, location.href).href;
+
+  function topbar(extra = '') {
+    const name = user ? esc(user.email.replace(DOMAIN, '')) : '';
+    return `<div class="brand"><div class="logo"><b>搶答派對</b>　主持人</div><div class="row">${extra}${user ? `<span class="me-chip">${name}</span><button class="btn ghost small" id="logoutBtn" type="button">登出</button>` : ''}</div></div>`;
+  }
+  function bindTop() { const b = $('#logoutBtn'); if (b) b.onclick = async () => { await sb.auth.signOut(); user = null; showLogin(); }; }
+
+  // ---------- 登入 ----------
+  function showLogin(msg) {
+    app.innerHTML = `${topbar()}
+      <section class="card" style="max-width:460px;margin:0 auto">
+        <h1 class="title"><span class="mark">主持人登入</span></h1>
+        <p class="muted">使用主持人帳號登入，就能編輯題庫、開場出題。同仁加入不需要帳號。</p>
+        <form id="loginForm">
+          <label class="field" for="u">帳號</label><input class="text" id="u" autocomplete="username" required>
+          <label class="field" for="p">密碼</label><input class="text" id="p" type="password" autocomplete="current-password" required>
+          <div style="margin-top:18px"><button class="btn block" id="loginBtn" type="submit">登入</button></div>
+          <div class="msg err" id="loginMsg">${msg ? esc(msg) : ''}</div>
+        </form>
+      </section>`;
+    $('#loginForm').onsubmit = async (e) => {
+      e.preventDefault();
+      const btn = $('#loginBtn'); btn.disabled = true;
+      const u = $('#u').value.trim().toLowerCase();
+      const { data, error } = await sb.auth.signInWithPassword({ email: u.includes('@') ? u : u + DOMAIN, password: $('#p').value });
+      btn.disabled = false;
+      if (error) { $('#loginMsg').textContent = errMsg(error); return; }
+      user = data.user; showHome();
+    };
+  }
+
+  // ---------- 題庫列表 ----------
+  async function showHome() {
+    stopConsole();
+    app.innerHTML = `${topbar()}<p class="muted">載入中…</p>`; bindTop();
+    const [{ data: sets, error }, { data: live }] = await Promise.all([
+      sb.from('quiz_sets').select('id,title,questions,updated_at').order('updated_at', { ascending: false }),
+      sb.from('quiz_games').select('id,pin,title,state,q_index,q_total,player_count,created_at').eq('host', user.id).neq('state', 'ended').order('created_at', { ascending: false }),
+    ]);
+    if (error) { app.innerHTML = `${topbar()}<div class="msg err">${esc(errMsg(error))}</div>`; bindTop(); return; }
+    app.innerHTML = `${topbar()}
+      ${live && live.length ? `<section class="card"><h2>進行中的場次</h2><div class="sets" style="margin-top:10px">
+        ${live.map((g) => `<div class="set-item"><div class="info"><h3>${esc(g.title)}</h3><span class="tag live">PIN ${g.pin}</span> <span class="muted small">${g.player_count} 人・${g.q_index < 0 ? '尚未出題' : `第 ${g.q_index + 1}／${g.q_total} 題`}</span></div>
+          <button class="btn small" data-resume="${g.id}" type="button">回到主持畫面</button><button class="btn ghost small" data-end="${g.id}" type="button">結束這場</button></div>`).join('')}
+      </div></section>` : ''}
+      <section class="card">
+        <div class="row spread"><h2>我的題庫</h2><button class="btn pink small" id="newSet" type="button">＋ 新增題庫</button></div>
+        <div class="sets" style="margin-top:12px">
+          ${sets.length ? sets.map((s) => `<div class="set-item" data-id="${s.id}"><div class="info"><h3>${esc(s.title)}</h3><span class="tag">${s.questions.length} 題</span></div>
+            <button class="btn ghost small" data-edit="${s.id}" type="button">編輯題目</button>
+            <button class="btn small" data-start="${s.id}" type="button" ${s.questions.length ? '' : 'disabled'}>開新場次</button></div>`).join('')
+          : '<p class="muted">還沒有題庫。按「新增題庫」開始出題。</p>'}
+        </div>
+      </section>
+      <section id="startBox"></section>`;
+    bindTop();
+    $('#newSet').onclick = async () => {
+      const { data, error } = await sb.from('quiz_sets').insert({ title: '新的題庫', questions: [] }).select().single();
+      if (error) return toast(errMsg(error));
+      showEditor(data);
+    };
+    app.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => showEditor(sets.find((s) => s.id === b.dataset.edit)));
+    app.querySelectorAll('[data-start]').forEach((b) => b.onclick = () => showStart(sets.find((s) => s.id === b.dataset.start)));
+    app.querySelectorAll('[data-resume]').forEach((b) => b.onclick = () => openConsole(b.dataset.resume));
+    app.querySelectorAll('[data-end]').forEach((b) => b.onclick = async () => {
+      if (!confirm('結束這一場？同仁會看到最終排名。')) return;
+      const { error } = await sb.rpc('quiz_host_end', { p_game: b.dataset.end });
+      if (error) return toast(errMsg(error));
+      showHome();
+    });
+  }
+
+  function showStart(set) {
+    const box = $('#startBox');
+    const n = set.questions.length;
+    box.innerHTML = `<div class="card" style="margin-top:14px">
+      <h2>開新場次：${esc(set.title)}</h2>
+      <label class="field" for="lim">這一場出幾題</label>
+      <select class="text" id="lim">${Array.from({ length: n }, (_, i) => n - i).map((k) => `<option value="${k}">${k === n ? `全部 ${n} 題` : k + ' 題'}</option>`).join('')}</select>
+      <label class="row" style="margin-top:14px;font-size:17px"><input type="checkbox" id="shuf" style="width:22px;height:22px" ${n > 1 ? 'checked' : ''}> 打亂題目順序（分好幾場時，避免題目被先傳出去）</label>
+      <div class="row" style="margin-top:18px"><button class="btn pink" id="go" type="button">開場，產生 PIN 碼</button><button class="btn ghost" id="cancel" type="button">取消</button></div>
+      <div class="msg err" id="startMsg"></div></div>`;
+    box.scrollIntoView({ behavior: 'smooth' });
+    $('#cancel').onclick = () => { box.innerHTML = ''; };
+    $('#go').onclick = async () => {
+      $('#go').disabled = true;
+      const { data, error } = await sb.rpc('quiz_create_game', { p_set: set.id, p_shuffle: $('#shuf').checked, p_limit: +$('#lim').value });
+      if (error) { $('#go').disabled = false; $('#startMsg').textContent = errMsg(error); return; }
+      openConsole(data[0].game_id);
+    };
+  }
+
+  // ---------- 出題編輯 ----------
+  function showEditor(set) {
+    let qs = JSON.parse(JSON.stringify(set.questions || []));
+    let dirty = false;
+    const blank = () => ({ q: '', options: ['', '', '', ''], answer: 0, time: 20, note: '' });
+    if (!qs.length) qs.push(blank());
+    const TIMES = [5, 10, 15, 20, 30, 45, 60, 90];
+
+    function draw() {
+      app.innerHTML = `${topbar()}
+        <div class="row" style="margin-bottom:12px"><button class="btn ghost small" id="back" type="button">← 回題庫</button></div>
+        <section class="card">
+          <label class="field" for="title" style="margin-top:0">題庫名稱（同仁會看到）</label>
+          <input class="text" id="title" maxlength="60" value="${esc(set.title)}">
+          <div class="row" style="margin-top:12px">
+            <button class="btn ghost small" id="importToggle" type="button">從 Excel 貼上題目</button>
+            <button class="btn ghost small" id="exportBtn" type="button">複製全部題目（可貼到 Excel）</button>
+            <button class="btn ghost small" id="delSet" type="button">刪除題庫</button>
+          </div>
+          <div id="importBox" class="hidden">
+            <p class="small muted">在 Excel 準備 8 欄：題目｜選項A｜選項B｜選項C｜選項D｜答案（A–D）｜秒數｜解說。選取資料列後複製，貼在下面。選項 C、D 可以空白；秒數和解說可省略。</p>
+            <textarea class="text" id="importText" rows="5" placeholder="FCR 是什麼意思？	首次來電解決率	客戶滿意度	平均處理時間	放棄率	A	15	First Call Resolution"></textarea>
+            <div class="row" style="margin-top:8px"><button class="btn small" id="importBtn" type="button">加入這些題目</button><span class="small muted" id="importMsg"></span></div>
+          </div>
+        </section>
+        <section style="margin-top:14px" id="qlist">
+          ${qs.map((q, i) => `<div class="qedit" data-i="${i}">
+            <div class="qhead"><span class="no">第 ${i + 1} 題</span>
+              <button class="iconbtn" data-act="up" type="button" aria-label="上移" ${i === 0 ? 'disabled' : ''}>↑</button>
+              <button class="iconbtn" data-act="down" type="button" aria-label="下移" ${i === qs.length - 1 ? 'disabled' : ''}>↓</button>
+              <button class="iconbtn" data-act="del" type="button" aria-label="刪除這題">✕</button></div>
+            <textarea class="text" data-f="q" maxlength="200" placeholder="輸入題目">${esc(q.q)}</textarea>
+            ${[0, 1, 2, 3].map((k) => `<div class="optline"><span class="shape" style="background:var(--${'abcd'[k]})" aria-hidden="true">${SHAPES[k]}</span>
+              <input class="text" data-f="o${k}" maxlength="80" value="${esc(q.options[k] || '')}" placeholder="選項 ${LETTERS[k]}${k >= 2 ? '（可空白）' : ''}" aria-label="選項 ${LETTERS[k]}">
+              <label class="correct"><input type="radio" name="ans${i}" value="${k}" ${q.answer === k ? 'checked' : ''}> 正解</label></div>`).join('')}
+            <div class="qmeta"><select class="text" data-f="time" aria-label="作答秒數">${(TIMES.includes(+q.time) ? TIMES : [+q.time, ...TIMES]).map((t) => `<option value="${t}" ${+q.time === t ? 'selected' : ''}>${t} 秒</option>`).join('')}</select>
+              <input class="text" data-f="note" maxlength="120" value="${esc(q.note || '')}" placeholder="公布答案時的補充說明（可空白）"></div>
+          </div>`).join('')}
+        </section>
+        <p><button class="btn ghost block" id="addQ" type="button">＋ 新增一題</button></p>
+        <div class="savebar"><button class="btn block pink" id="save" type="button">儲存題庫</button><div class="msg err" id="saveMsg"></div></div>`;
+      bindTop();
+      $('#back').onclick = () => { if (!dirty || confirm('還沒儲存，確定離開？')) showHome(); };
+      $('#title').oninput = () => { dirty = true; };
+      $('#addQ').onclick = () => { collect(); qs.push(blank()); dirty = true; draw(); $('#qlist').lastElementChild.querySelector('textarea').focus(); };
+      $('#importToggle').onclick = () => $('#importBox').classList.toggle('hidden');
+      $('#importBtn').onclick = () => {
+        collect();
+        const rows = $('#importText').value.split(/\r?\n/).map((l) => l.split(/\t|｜|\|/)).filter((c) => c[0] && c[0].trim());
+        let added = 0;
+        rows.forEach((c) => {
+          const opts = [1, 2, 3, 4].map((k) => (c[k] || '').trim());
+          let ans = (c[5] || 'A').trim().toUpperCase();
+          ans = 'ABCD'.indexOf(ans) >= 0 ? 'ABCD'.indexOf(ans) : Math.max(0, (parseInt(ans, 10) || 1) - 1);
+          const t = parseInt(c[6], 10);
+          qs.push({ q: c[0].trim(), options: opts, answer: ans, time: TIMES.includes(t) ? t : 20, note: (c[7] || '').trim() });
+          added++;
+        });
+        qs = qs.filter((q) => q.q.trim() || q.options.some((o) => o.trim()));
+        dirty = true; draw();
+        toast(`已加入 ${added} 題，記得按「儲存題庫」`);
+      };
+      $('#exportBtn').onclick = async () => {
+        collect();
+        const tsv = qs.map((q) => [q.q, ...[0, 1, 2, 3].map((k) => q.options[k] || ''), LETTERS[q.answer], q.time, q.note || ''].map((x) => String(x).replace(/[\t\n]/g, ' ')).join('\t')).join('\n');
+        try { await navigator.clipboard.writeText(tsv); toast('已複製，可以直接貼到 Excel'); } catch (e) { toast('複製失敗，請改用電腦瀏覽器'); }
+      };
+      $('#delSet').onclick = async () => {
+        if (!confirm(`刪除「${set.title}」？刪除後無法復原。`)) return;
+        const { error } = await sb.from('quiz_sets').delete().eq('id', set.id);
+        if (error) return toast(errMsg(error));
+        showHome();
+      };
+      app.querySelectorAll('.qedit').forEach((el) => {
+        el.addEventListener('input', () => { dirty = true; });
+        el.querySelectorAll('[data-act]').forEach((b) => b.onclick = () => {
+          collect(); const i = +el.dataset.i;
+          if (b.dataset.act === 'del') { if (!confirm(`刪除第 ${i + 1} 題？`)) return; qs.splice(i, 1); if (!qs.length) qs.push(blank()); }
+          if (b.dataset.act === 'up') [qs[i - 1], qs[i]] = [qs[i], qs[i - 1]];
+          if (b.dataset.act === 'down') [qs[i + 1], qs[i]] = [qs[i], qs[i + 1]];
+          dirty = true; draw();
+        });
+      });
+      $('#save').onclick = save;
+    }
+
+    function collect() {
+      app.querySelectorAll('.qedit').forEach((el) => {
+        const i = +el.dataset.i; const f = (k) => el.querySelector(`[data-f="${k}"]`).value;
+        const r = el.querySelector(`input[name="ans${i}"]:checked`);
+        qs[i] = { q: f('q'), options: [0, 1, 2, 3].map((k) => f('o' + k)), answer: r ? +r.value : 0, time: +f('time'), note: f('note') };
+      });
+      const t = $('#title'); if (t) set.title = t.value;
+    }
+
+    async function save() {
+      collect();
+      const out = [];
+      for (let i = 0; i < qs.length; i++) {
+        const q = qs[i];
+        if (!q.q.trim() && !q.options.some((o) => o.trim())) continue;
+        const kept = q.options.map((o, k) => ({ o: o.trim(), k })).filter((x) => x.o);
+        const ansPos = kept.findIndex((x) => x.k === q.answer);
+        if (!q.q.trim()) return fail(`第 ${i + 1} 題還沒有題目。`);
+        if (kept.length < 2) return fail(`第 ${i + 1} 題至少要有 2 個選項。`);
+        if (ansPos < 0) return fail(`第 ${i + 1} 題勾選的正解是空白選項，請重新勾選。`);
+        const item = { q: q.q.trim(), options: kept.map((x) => x.o), answer: ansPos, time: q.time || 20 };
+        if (q.note && q.note.trim()) item.note = q.note.trim();
+        out.push(item);
+      }
+      const title = (set.title || '').trim() || '未命名題庫';
+      $('#save').disabled = true;
+      const { error } = await sb.from('quiz_sets').update({ title, questions: out, updated_at: new Date().toISOString() }).eq('id', set.id);
+      $('#save').disabled = false;
+      if (error) return fail(errMsg(error));
+      set.title = title; set.questions = out; dirty = false;
+      toast(`已儲存 ${out.length} 題`);
+      $('#saveMsg').textContent = '';
+    }
+    function fail(m) { $('#saveMsg').textContent = m; return false; }
+
+    window.onbeforeunload = () => (dirty ? '尚未儲存' : undefined);
+    draw();
+  }
+
+  // ---------- 主持控制台 ----------
+  let C = null; // { id, game, questions, players, channel, timers, revealing, ready }
+  function stopConsole() {
+    if (!C) return;
+    if (C.channel) sb.removeChannel(C.channel);
+    clearInterval(C.tick); clearInterval(C.poll);
+    C = null;
+  }
+
+  async function openConsole(gameId) {
+    stopConsole();
+    window.onbeforeunload = null;
+    unlockAudio(); keepAwake();
+    app.innerHTML = `${topbar()}<p class="muted">載入場次…</p>`; bindTop();
+    const [{ data: game, error }, { data: questions, error: e2 }] = await Promise.all([
+      sb.from('quiz_games').select('*').eq('id', gameId).single(),
+      sb.rpc('quiz_host_questions', { p_game: gameId }),
+    ]);
+    if (error || e2) { toast(errMsg(error || e2)); return showHome(); }
+    C = { id: gameId, game, questions, players: [], viewKey: '', revealing: false, ready: store.get('quizparty:ready') ?? 10 };
+    C.channel = sb.channel('host-' + gameId)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quiz_games', filter: 'id=eq.' + gameId }, (p) => setGame(p.new))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quiz_players', filter: 'game_id=eq.' + gameId }, () => loadPlayers())
+      .subscribe();
+    C.poll = setInterval(async () => {
+      if (!C) return;
+      const { data } = await sb.from('quiz_games').select('*').eq('id', gameId).single();
+      if (data && C) setGame(data);
+    }, 4000);
+    C.tick = setInterval(tick, 200);
+    await loadPlayers();
+    drawConsole();
+  }
+
+  function setGame(g) {
+    if (!C) return;
+    const prevCount = C.game.player_count;
+    C.game = g;
+    if (g.player_count !== prevCount) loadPlayers();
+    drawStage();
+  }
+
+  async function loadPlayers() {
+    if (!C) return;
+    const { data } = await sb.from('quiz_players').select('id,nickname,score,correct_count').eq('game_id', C.id).order('score', { ascending: false }).order('joined_at');
+    if (!C) return;
+    C.players = data || [];
+    drawPlayers();
+    if (C.game.state === 'reveal' || C.game.state === 'ended') { C.viewKey = ''; drawStage(); }
+  }
+
+  function drawConsole() {
+    const g = C.game;
+    const url = playerURL(g.pin);
+    app.innerHTML = `${topbar()}
+      <div class="row" style="margin-bottom:12px"><button class="btn ghost small" id="back" type="button">← 回題庫</button><span class="muted">${esc(g.title)}</span></div>
+      <div class="console">
+        <div class="side">
+          <section class="card">
+            <div class="pinbox">
+              <div><div class="muted small">PIN 碼</div><div class="pinnum">${g.pin}</div>
+                <div class="muted small" style="margin-top:6px;overflow-wrap:anywhere">${esc(url.replace(/^https?:\/\//, ''))}</div></div>
+              <div class="qr" id="qr" aria-label="加入用 QR code"></div>
+            </div>
+            <div class="row" style="margin-top:12px;justify-content:center">
+              <button class="btn small" id="copyInvite" type="button">複製邀請文字（貼到群組）</button>
+              <button class="btn ghost small" id="copyLink" type="button">只複製連結</button>
+            </div>
+          </section>
+          <section class="card">
+            <div class="row spread"><h3>已加入 <b id="pc">${g.player_count}</b> 人</h3><span class="small muted">點暱稱可移除</span></div>
+            <div class="chips" id="chips"></div>
+          </section>
+        </div>
+        <section class="card" id="stage"></section>
+      </div>`;
+    bindTop();
+    try { const qr = qrcode(0, 'M'); qr.addData(url); qr.make(); $('#qr').innerHTML = qr.createSvgTag({ scalable: true, margin: 0 }); } catch (e) {}
+    $('#back').onclick = showHome;
+    $('#copyLink').onclick = () => copy(url, '已複製連結');
+    $('#copyInvite').onclick = () => copy(`【${g.title}】搶答開始囉！\n手機打開 ${url}\n輸入暱稱就能加入（PIN：${g.pin}）\n題目會不定時跳出，最快答對拿小禮物 🎁`, '已複製邀請文字');
+    drawPlayers(); C.viewKey = ''; drawStage();
+  }
+
+  async function copy(text, okMsg) {
+    try { await navigator.clipboard.writeText(text); toast(okMsg); }
+    catch (e) { prompt('請長按複製：', text); }
+  }
+
+  function drawPlayers() {
+    const el = $('#chips'); if (!el) return;
+    $('#pc').textContent = C.players.length;
+    el.innerHTML = C.players.length ? C.players.map((p) => `<button class="chip" data-p="${p.id}" type="button">${esc(p.nickname)}</button>`).join('') : '<span class="muted small">等待同仁掃碼加入…</span>';
+    el.querySelectorAll('[data-p]').forEach((b) => b.onclick = async () => {
+      const p = C.players.find((x) => x.id === b.dataset.p);
+      if (!p || !confirm(`把「${p.nickname}」移出這一場？（例如暱稱不恰當或重複加入）`)) return;
+      const { error } = await sb.rpc('quiz_host_kick', { p_game: C.id, p_player: p.id });
+      if (error) return toast(errMsg(error));
+      loadPlayers();
+    });
+  }
+
+  function readySeg() {
+    const opts = [[3, '3 秒'], [10, '10 秒'], [30, '30 秒']];
+    return `<div class="row" style="margin-top:12px"><span class="small muted">出題後倒數</span><div class="seg" role="group" aria-label="出題後倒數秒數">
+      ${opts.map(([v, l]) => `<button type="button" data-ready="${v}" aria-pressed="${C.ready === v}">${l}</button>`).join('')}</div></div>
+      <p class="small muted" style="margin:6px 0 0">不定期出題時建議 10–30 秒，讓同仁有時間拿起手機；倒數期間題目先顯示、還不能作答。</p>`;
+  }
+  function bindReady() {
+    app.querySelectorAll('[data-ready]').forEach((b) => b.onclick = () => {
+      C.ready = +b.dataset.ready; store.set('quizparty:ready', C.ready);
+      app.querySelectorAll('[data-ready]').forEach((x) => x.setAttribute('aria-pressed', String(+x.dataset.ready === C.ready)));
+    });
+  }
+
+  function nextPreview() {
+    const g = C.game, nq = C.questions[g.q_index + 1];
+    if (!nq) return '';
+    return `<div class="preview"><div class="small muted">下一題（只有你看得到）</div><div style="font-size:18px">${esc(nq.q)}</div><div class="small" style="color:var(--ok)">正解：${SHAPES[nq.answer]} ${esc(nq.options[nq.answer])}</div></div>`;
+  }
+
+  async function next() {
+    const b = $('#nextBtn'); if (b) b.disabled = true;
+    const { error } = await sb.rpc('quiz_host_next', { p_game: C.id, p_ready: C.ready });
+    if (error) { toast(errMsg(error)); if (b) b.disabled = false; return; }
+    sfx.question();
+    const { data } = await sb.from('quiz_games').select('*').eq('id', C.id).single();
+    if (data) setGame(data);
+  }
+  async function reveal() {
+    if (!C || C.revealing) return;
+    C.revealing = true;
+    const { error } = await sb.rpc('quiz_host_reveal', { p_game: C.id });
+    if (error) toast(errMsg(error));
+    const { data } = await sb.from('quiz_games').select('*').eq('id', C.id).single();
+    if (C) { C.revealing = false; if (data) setGame(data); }
+    await loadPlayers();
+  }
+  async function endGame() {
+    if (!confirm('結束遊戲並揭曉總排名？')) return;
+    const { error } = await sb.rpc('quiz_host_end', { p_game: C.id });
+    if (error) return toast(errMsg(error));
+    const { data } = await sb.from('quiz_games').select('*').eq('id', C.id).single();
+    if (data) setGame(data);
+  }
+
+  function drawStage() {
+    const st = $('#stage'); if (!st || !C) return;
+    const g = C.game;
+    const pc = $('#pc'); if (pc && g.player_count != null) pc.textContent = Math.max(g.player_count, C.players.length);
+    const key = g.state + ':' + g.q_index + ':' + (g.state === 'question' ? '' : C.players.length);
+    if (g.state === 'question') {
+      const a = $('[data-answered]'); if (a) a.textContent = g.answered_count;
+    }
+    if (key === C.viewKey) return;
+    C.viewKey = key;
+    const isLast = g.q_index + 1 >= g.q_total;
+
+    if (g.state === 'lobby') {
+      st.innerHTML = `<h2>同仁加入中</h2>
+        <p class="muted">請大家掃 QR code，或把邀請文字貼到群組。人到齊、或想出題的時候，按下面的按鈕。</p>
+        ${nextPreview()}
+        ${readySeg()}
+        <div style="margin-top:16px"><button class="btn block pink" id="nextBtn" type="button">出第 1 題</button></div>`;
+      bindReady(); $('#nextBtn').onclick = next;
+    } else if (g.state === 'question') {
+      const q = C.questions[g.q_index];
+      st.innerHTML = `<div class="qnum">第 ${g.q_index + 1} 題／共 ${g.q_total} 題</div><h2 class="qtext">${esc(q.q)}</h2>
+        <div data-readybox class="muted"></div>
+        ${grillHTML()}
+        <p class="answered" style="margin:14px 0 6px">已作答 <b data-answered>${g.answered_count}</b> ／ ${C.players.length} 人</p>
+        <div class="opts">${q.options.map((o, i) => `<div class="opt o${i} ${i === q.answer ? 'right' : 'dim'}"><span class="shape" aria-hidden="true">${SHAPES[i]}</span><span>${esc(o)}</span></div>`).join('')}</div>
+        <div style="margin-top:16px"><button class="btn block yellow" id="revealBtn" type="button">提前公布答案</button></div>
+        <p class="small muted">時間到或全部人都作答後，會自動公布。</p>`;
+      $('#revealBtn').onclick = reveal;
+      tick();
+    } else if (g.state === 'reveal') {
+      const rv = g.reveal || {}, q = C.questions[g.q_index];
+      const counts = rv.counts || [];
+      st.innerHTML = `<div class="qnum">第 ${g.q_index + 1} 題／共 ${g.q_total} 題</div><h2 class="qtext">${esc(q.q)}</h2>
+        <div class="opts bars">${q.options.map((o, i) => `<div class="opt o${i} ${i === rv.answer ? 'right' : 'dim'}"><span class="shape" aria-hidden="true">${SHAPES[i]}</span><span>${esc(o)}</span><span class="count">${counts[i] ?? 0} 人</span></div>`).join('')}</div>
+        ${rv.note ? `<p class="muted">${esc(rv.note)}</p>` : ''}
+        <h3 style="margin-top:18px">最快答對</h3>
+        ${fastestHTML(rv.fastest)}
+        ${rv.fastest && rv.fastest.length ? `<p class="gift">🎁 第 1 名可以來領小禮物</p>` : ''}
+        <h3 style="margin-top:18px">目前總分前 5 名</h3>
+        <ol class="rank">${C.players.slice(0, 5).map((p, i) => `<li><span class="n">${i + 1}</span><span>${esc(p.nickname)}</span><span class="s">${p.score}</span></li>`).join('')}</ol>
+        ${isLast ? '' : nextPreview() + readySeg()}
+        <div class="row" style="margin-top:16px">
+          ${isLast ? `<button class="btn block pink" id="endBtn" type="button">揭曉總排名</button>` : `<button class="btn pink" id="nextBtn" type="button" style="flex:1">出第 ${g.q_index + 2} 題</button><button class="btn ghost" id="endBtn" type="button">提早結束</button>`}
+        </div>`;
+      if (!isLast) { bindReady(); $('#nextBtn').onclick = next; }
+      $('#endBtn').onclick = endGame;
+    } else if (g.state === 'ended') {
+      st.innerHTML = `<h2 class="center"><span class="mark">總排名</span></h2>
+        ${podiumHTML(C.players)}
+        <ol class="rank">${C.players.map((p, i) => `<li><span class="n">${i + 1}</span><span>${esc(p.nickname)}</span><span class="small muted">答對 ${p.correct_count}</span><span class="s">${p.score}</span></li>`).join('')}</ol>
+        <div class="row" style="margin-top:16px"><button class="btn" id="homeBtn" type="button">回題庫，開下一場</button></div>`;
+      $('#homeBtn').onclick = showHome;
+      if (!C.fanfared) { C.fanfared = true; sfx.fanfare(); }
+    }
+  }
+
+  function tick() {
+    if (!C || C.game.state !== 'question') return;
+    const g = C.game;
+    const stMs = new Date(g.q_started_at).getTime(), dl = new Date(g.q_deadline).getTime();
+    const rb = $('[data-readybox]');
+    if (rb) rb.textContent = now() < stMs ? `倒數 ${Math.ceil((stMs - now()) / 1000)} 秒後開放作答` : '';
+    updateGrill(app, now() < stMs ? stMs : stMs, dl);
+    const everyone = C.players.length > 0 && g.answered_count >= C.players.length;
+    if (!C.revealing && (now() > dl + 1600 || (everyone && now() >= stMs))) reveal();
+  }
+
+  // ---------- 啟動 ----------
+  (async function boot() {
+    await syncClock();
+    const { data } = await sb.auth.getUser();
+    user = data && data.user;
+    if (!user) return showLogin();
+    showHome();
+  })();
+})();
+</script>
+</body>
+</html>

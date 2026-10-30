@@ -1,0 +1,319 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fbf4e2">
+<title>搶答派對</title>
+<meta name="description" content="輸入 PIN 碼加入搶答，最快答對拿小禮物。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8D%96%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
+<link rel="stylesheet" href="quiz.css?v=1">
+</head>
+<body>
+<main class="wrap" id="app" aria-live="polite"></main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="quiz.js?v=1"></script>
+<script>
+(function () {
+  const { sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, store, SHAPES, grillHTML, updateGrill, rankOf, podiumHTML, fastestHTML } = QP;
+  const app = $('#app');
+  const KEY = 'quizparty:player';
+
+  let me = store.get(KEY);          // { game_id, player_id, token, nick, pin }
+  let game = null;
+  let answers = {};                 // q_index -> { choice, sec }
+  let channel = null;
+  let viewKey = '';
+  let tickTimer = null, pollTimer = null;
+  let revealCache = {};             // q_index -> { players }
+  let lastTickSec = null;
+
+  const params = new URLSearchParams(location.search);
+  const pinFromUrl = (params.get('pin') || '').replace(/\D/g, '').slice(0, 6);
+
+  function header() {
+    const title = game ? esc(game.title) : '搶答派對';
+    const chip = me ? `<span class="me-chip">${esc(me.nick)}</span>` : '';
+    return `<div class="brand"><div class="logo"><b>${title}</b></div>${chip}</div>`;
+  }
+
+  // ---------- 加入 ----------
+  function showJoin(msg) {
+    viewKey = 'join';
+    const lastNick = store.get('quizparty:nick') || '';
+    app.innerHTML = `${header()}
+      <section class="card">
+        <h1 class="title"><span class="mark">加入搶答</span></h1>
+        <p class="muted">主持人出題時，題目會直接出現在你的手機上。最快答對的人拿小禮物！</p>
+        <form id="joinForm" autocomplete="off">
+          <label class="field" for="pin">PIN 碼（6 位數字）</label>
+          <input class="text pin" id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="${pinFromUrl}" required>
+          <label class="field" for="nick">你的暱稱（大家會看到）</label>
+          <input class="text" id="nick" maxlength="12" value="${esc(lastNick)}" placeholder="例如：小安" required>
+          <div style="margin-top:18px"><button class="btn block pink" id="joinBtn" type="submit">加入</button></div>
+          <div class="msg err" id="joinMsg">${msg ? esc(msg) : ''}</div>
+        </form>
+      </section>`;
+    const pin = $('#pin'), nick = $('#nick');
+    (pinFromUrl ? nick : pin).focus();
+    pin.addEventListener('input', () => { pin.value = pin.value.replace(/\D/g, '').slice(0, 6); });
+    $('#joinForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      unlockAudio();
+      const btn = $('#joinBtn'); btn.disabled = true; btn.textContent = '加入中…';
+      $('#joinMsg').textContent = '';
+      const { data, error } = await sb.rpc('quiz_join', { p_pin: pin.value, p_nick: nick.value });
+      if (error || !data || !data.length) {
+        btn.disabled = false; btn.textContent = '加入';
+        $('#joinMsg').textContent = errMsg(error || 'no_game');
+        return;
+      }
+      const r = data[0];
+      me = { game_id: r.game_id, player_id: r.player_id, token: r.token, nick: nick.value.trim().replace(/\s+/g, ' '), pin: pin.value };
+      store.set(KEY, me); store.set('quizparty:nick', me.nick);
+      answers = {};
+      store.set('quizparty:answers:' + me.game_id, answers);
+      keepAwake();
+      await start();
+    });
+  }
+
+  // ---------- 遊戲資料 ----------
+  async function fetchGame() {
+    const { data, error } = await sb.from('quiz_games').select('*').eq('id', me.game_id).maybeSingle();
+    if (error) return;
+    if (!data) { leave('這一場已經不存在了。'); return; }
+    applyGame(data);
+  }
+  async function fetchPlayers() {
+    const { data } = await sb.from('quiz_players').select('id,nickname,score,correct_count,last_points,last_correct')
+      .eq('game_id', me.game_id).order('score', { ascending: false }).order('joined_at');
+    return data || [];
+  }
+
+  function applyGame(g) {
+    const prev = game;
+    game = g;
+    if (prev && g.state === 'question' && (prev.state !== 'question' || prev.q_index !== g.q_index)) sfx.question();
+    render();
+  }
+
+  function leave(msg) {
+    store.del(KEY); me = null; game = null;
+    if (channel) { sb.removeChannel(channel); channel = null; }
+    clearInterval(pollTimer);
+    showJoin(msg);
+  }
+
+  async function start() {
+    answers = store.get('quizparty:answers:' + me.game_id) || {};
+    if (channel) sb.removeChannel(channel);
+    channel = sb.channel('qp-' + me.game_id)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'quiz_games', filter: 'id=eq.' + me.game_id }, (p) => applyGame(p.new))
+      .subscribe();
+    await fetchGame();
+    // 備援：每 5 秒同步一次，避免漏接即時訊號
+    clearInterval(pollTimer);
+    pollTimer = setInterval(() => { if (document.visibilityState === 'visible') fetchGame(); }, 5000);
+    if (!tickTimer) tickTimer = setInterval(tick, 200);
+  }
+
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && me) { syncClock(); fetchGame(); } });
+
+  // ---------- 畫面 ----------
+  function phase() {
+    if (!game) return 'none';
+    if (game.state === 'question') {
+      const st = new Date(game.q_started_at).getTime(), dl = new Date(game.q_deadline).getTime();
+      if (answers[game.q_index]) return 'sent';
+      if (now() < st) return 'ready';
+      if (now() <= dl) return 'open';
+      return 'timeup';
+    }
+    return game.state;
+  }
+
+  function render() {
+    if (!me) return;
+    const ph = phase();
+    const key = ph + ':' + (game ? game.q_index : '');
+    if (ph === 'lobby' && viewKey.startsWith('lobby')) { const c = $('[data-count]'); if (c) c.textContent = game.player_count; viewKey = key; return; }
+    if (key === viewKey) return;
+    viewKey = key;
+    ({ lobby: viewLobby, ready: viewReady, open: viewOpen, sent: viewSent, timeup: viewTimeup, reveal: viewReveal, ended: viewEnded }[ph] || (() => {}))();
+  }
+
+  function tick() {
+    if (!game || game.state !== 'question') return;
+    render();
+    const st = new Date(game.q_started_at).getTime(), dl = new Date(game.q_deadline).getTime();
+    const ph = phase();
+    if (ph === 'ready') {
+      const el = $('[data-ready]');
+      const s = Math.max(Math.ceil((st - now()) / 1000), 1);
+      if (el && el.textContent !== String(s)) { el.textContent = s; el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); if (s <= 3) sfx.tick(); }
+    } else if (ph === 'open' || ph === 'sent') {
+      const left = updateGrill(app, st, dl);
+      const s = Math.ceil(left / 1000);
+      if (ph === 'open' && s <= 5 && s > 0 && s !== lastTickSec) { lastTickSec = s; sfx.tick(); }
+    }
+  }
+
+  function viewLobby() {
+    const started = game.q_index >= 0;
+    app.innerHTML = `${header()}
+      <section class="card center">
+        <h1 class="title">${started ? '等待下一題' : '你已加入！'}</h1>
+        <p class="muted">主持人出題時，這裡會自動跳出題目並震動提醒。<br>可以先放下手機吃肉，畫面保持開著就好。</p>
+        <p class="waiting-dots" aria-hidden="true"><span></span><span></span><span></span></p>
+        <p>現在有 <b data-count>${game.player_count}</b> 人加入</p>
+      </section>
+      <p class="center small muted" style="margin-top:16px"><button class="btn ghost small" id="leaveBtn" type="button">換一場／換暱稱</button></p>`;
+    $('#leaveBtn').onclick = () => { if (confirm('離開這一場？目前的分數會留在這一場，但你將無法再回來作答。')) leave(); };
+  }
+
+  function qHead() {
+    return `<div class="qnum">第 ${game.q_index + 1} 題／共 ${game.q_total} 題</div><h2 class="qtext">${esc(game.current_q.q)}</h2>`;
+  }
+
+  function viewReady() {
+    app.innerHTML = `${header()}
+      <section class="card">
+        ${qHead()}
+        <p class="center muted" style="margin:18px 0 4px">準備作答</p>
+        <div class="big-count pop" data-ready>${Math.max(Math.ceil((new Date(game.q_started_at).getTime() - now()) / 1000), 1)}</div>
+      </section>`;
+  }
+
+  function viewOpen() {
+    lastTickSec = null;
+    const q = game.current_q;
+    app.innerHTML = `${header()}
+      <section class="card">
+        ${qHead()}
+        ${grillHTML()}
+      </section>
+      <div class="opts" role="group" aria-label="選項">
+        ${q.options.map((o, i) => `<button class="opt o${i}" data-i="${i}" type="button"><span class="shape" aria-hidden="true">${SHAPES[i]}</span><span>${esc(o)}</span></button>`).join('')}
+      </div>`;
+    tick();
+    app.querySelectorAll('.opt').forEach((b) => b.addEventListener('click', () => answer(+b.dataset.i)));
+  }
+
+  async function answer(choice) {
+    if (!game || answers[game.q_index]) return;
+    unlockAudio(); sfx.send();
+    const qi = game.q_index;
+    const sec = Math.max((now() - new Date(game.q_started_at).getTime()) / 1000, 0);
+    answers[qi] = { choice, sec, pending: true };
+    app.querySelectorAll('.opt').forEach((b) => { b.disabled = true; b.classList.toggle('chosen', +b.dataset.i === choice); b.classList.toggle('dim', +b.dataset.i !== choice); });
+    const { data, error } = await sb.rpc('quiz_answer', { p_player: me.player_id, p_token: me.token, p_q: qi, p_choice: choice });
+    if (error) {
+      delete answers[qi];
+      QP.toast(errMsg(error));
+      viewKey = ''; render();
+      return;
+    }
+    if (data === 'bad_token') { leave('你的加入資料已失效，請重新加入。'); return; }
+    if (data === 'late' || data === 'closed') { answers[qi] = { choice, sec, late: true }; }
+    else answers[qi] = { choice, sec };
+    store.set('quizparty:answers:' + me.game_id, answers);
+    viewKey = ''; render();
+  }
+
+  function viewSent() {
+    const a = answers[game.q_index];
+    const q = game.current_q;
+    app.innerHTML = `${header()}
+      <section class="card">
+        ${qHead()}
+        ${grillHTML()}
+      </section>
+      <div class="opts">
+        ${q.options.map((o, i) => `<div class="opt o${i} ${i === a.choice ? 'chosen' : 'dim'}"><span class="shape" aria-hidden="true">${SHAPES[i]}</span><span>${esc(o)}</span></div>`).join('')}
+      </div>
+      <section class="card center" style="margin-top:14px">
+        ${a.late ? '<p>這題已經截止，沒有送出成功。</p>' : `<p><span class="mark">已送出！</span>　用時 ${a.sec.toFixed(2)} 秒</p><p class="muted small">等主持人公布答案</p>`}
+      </section>`;
+    tick();
+  }
+
+  function viewTimeup() {
+    app.innerHTML = `${header()}
+      <section class="card center">
+        ${qHead()}
+        <p style="font-size:26px;margin:18px 0 6px">時間到！</p>
+        <p class="muted">這題來不及作答，等主持人公布答案。</p>
+      </section>`;
+  }
+
+  async function viewReveal() {
+    const qi = game.q_index, rv = game.reveal || {}, q = game.current_q;
+    const a = answers[qi];
+    const mineOk = a && !a.late && a.choice === rv.answer;
+    const counts = rv.counts || [];
+    app.innerHTML = `${header()}
+      <div id="badge" class="result-badge ${!a || a.late ? 'none' : mineOk ? 'ok' : 'bad'}">
+        <div class="head">${!a || a.late ? '這題沒作答' : mineOk ? '答對了！' : '可惜答錯了'}</div>
+        <div class="pts" data-pts>　</div>
+      </div>
+      <section class="card" style="margin-top:14px">
+        ${qHead()}
+        <div class="opts">
+          ${q.options.map((o, i) => `<div class="opt o${i} ${i === rv.answer ? 'right' : 'dim'}"><span class="shape" aria-hidden="true">${SHAPES[i]}</span><span>${esc(o)}</span><span class="count">${counts[i] ?? 0} 人</span></div>`).join('')}
+        </div>
+        ${rv.note ? `<p class="muted" style="margin-top:14px">${esc(rv.note)}</p>` : ''}
+      </section>
+      <section class="card">
+        <h3>這題最快答對</h3>
+        ${fastestHTML(rv.fastest, me.player_id)}
+      </section>
+      <p class="center small muted" style="margin-top:14px">${game.q_index + 1 < game.q_total ? '下一題出現時，畫面會自動跳出並震動提醒。' : '這是最後一題，等主持人揭曉總排名。'}</p>`;
+    if (a && !a.late) (mineOk ? sfx.right : sfx.wrong)();
+    const players = await fetchPlayers();
+    if (game.q_index !== qi || game.state !== 'reveal') return;
+    const mine = players.find((p) => p.id === me.player_id);
+    if (!mine) { leave('你已被主持人移出這一場。'); return; }
+    const r = rankOf(players, me.player_id);
+    const pts = $('[data-pts]');
+    if (pts) pts.textContent = `${mine.last_points ? '+' + mine.last_points + ' 分　' : ''}目前 ${mine.score} 分・第 ${r} 名`;
+  }
+
+  async function viewEnded() {
+    app.innerHTML = `${header()}<section class="card center"><h1 class="title">遊戲結束</h1><p class="muted">正在統計名次…</p></section>`;
+    const players = await fetchPlayers();
+    const mine = players.find((p) => p.id === me.player_id);
+    const r = rankOf(players, me.player_id);
+    sfx.fanfare();
+    app.innerHTML = `${header()}
+      <section class="card center">
+        <h1 class="title"><span class="mark">遊戲結束</span></h1>
+        ${podiumHTML(players, me.player_id)}
+        ${mine ? `<p style="font-size:20px">你是第 <b>${r}</b> 名，${mine.score} 分，答對 ${mine.correct_count} 題</p>` : ''}
+        <p class="muted">謝謝參加！小禮物請找主持人領取。</p>
+      </section>
+      <p class="center" style="margin-top:16px"><button class="btn ghost" id="again" type="button">加入下一場</button></p>`;
+    $('#again').onclick = () => leave();
+  }
+
+  // ---------- 啟動 ----------
+  (async function boot() {
+    await syncClock();
+    if (me && (!pinFromUrl || pinFromUrl === me.pin)) {
+      const { data } = await sb.from('quiz_players').select('id').eq('id', me.player_id).maybeSingle();
+      if (data) { await start(); return; }
+      store.del(KEY); me = null;
+    } else if (me && pinFromUrl && pinFromUrl !== me.pin) {
+      store.del(KEY); me = null;
+    }
+    showJoin();
+  })();
+  document.addEventListener('pointerdown', unlockAudio, { once: true });
+})();
+</script>
+</body>
+</html>
