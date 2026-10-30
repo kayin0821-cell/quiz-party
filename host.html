@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
-<link rel="stylesheet" href="quiz.css?v=3">
+<link rel="stylesheet" href="quiz.css?v=4">
 <style>
   .sets { display: grid; gap: 12px; }
   .set-item { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
@@ -84,7 +84,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
-<script src="quiz.js?v=3"></script>
+<script src="quiz.js?v=4"></script>
 <script>
 (function () {
   const { GIFT, sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, toast, store, SHAPES, LETTERS, grillHTML, updateGrill, podiumHTML, fastestHTML } = QP;
@@ -150,7 +150,7 @@
       <section id="startBox"></section>
       <section class="card" style="margin-top:14px">
         <div class="row spread"><h2><span class="ico">${GIFT}</span>得獎紀錄</h2><button class="btn ghost small" id="copyAll" type="button" hidden>複製全部名單</button></div>
-        <p class="muted small" style="margin:6px 0 0">每題最快答對的人。獎品最後一起發，發完勾「已發」。</p>
+        <p class="muted small" style="margin:6px 0 0">每場總分第一名得獎（同分並列）。獎品最後一起發，發完勾「已發」。</p>
         <div id="history"><p class="muted small">載入中…</p></div>
       </section>`;
     bindTop();
@@ -194,17 +194,17 @@
   // ---------- 得獎紀錄 ----------
   const fmtDate = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   function winnersText(title, when, w) {
-    const lines = w.people.map((p) => `${p.nick} ×${p.count}${p.given ? '（已發）' : ''}`);
-    return `【${title}】${when ? ' ' + when : ''}\n${lines.join('\n') || '（沒有得獎者）'}`;
+    const lines = w.people.map((p) => `冠軍：${p.nick}（${p.score} 分）${p.given ? '　已發' : ''}`);
+    return `【${title}】${when ? ' ' + when : ''}\n${lines.join('\n') || (w.decided ? '（沒有人得分）' : '（進行中）')}`;
   }
   function winnersHTML(gameId, w) {
-    if (!w.people.length) return '<p class="muted small">這場沒有人答對任何一題。</p>';
-    const total = w.people.reduce((n, p) => n + p.count, 0);
-    const left = w.people.filter((p) => !p.given).reduce((n, p) => n + p.count, 0);
-    return `<p class="small" style="margin:6px 0">共 ${total} 份，${left ? `還有 <b>${left}</b> 份未發` : '全部發完了'}</p>
-      <ul class="prize">${w.people.map((p) => `<li class="${p.given ? 'given' : ''}"><span class="who">${esc(p.nick)}</span><span class="cnt">×${p.count}</span>
+    if (!w.decided) return '<p class="muted small">這場還在進行中，結束後會顯示冠軍。</p>';
+    if (!w.people.length) return '<p class="muted small">這場沒有人得分。</p>';
+    const tie = w.people.length > 1;
+    return `${tie ? `<p class="small" style="margin:6px 0">同分並列 ${w.people.length} 人</p>` : ''}
+      <ul class="prize">${w.people.map((p) => `<li class="${p.given ? 'given' : ''}"><span class="who">${esc(p.nick)}</span><span class="cnt small">${p.score} 分</span>
         <label class="given-box"><input type="checkbox" data-give="${gameId}|${p.player_id}" ${p.given ? 'checked' : ''}> 已發</label></li>`).join('')}</ul>
-      <details class="small"><summary>看每題是誰拿到</summary><ol class="rank">${w.questions.map((q) => `<li><span class="n">${q.q_index + 1}</span><span style="flex:1">${esc(q.q)}</span><span>${esc(q.nick)}</span></li>`).join('')}</ol></details>`;
+      ${w.podium && w.podium.length > 1 ? `<p class="small muted" style="margin:0">其他前三名：${w.podium.slice(w.people.length).slice(0, 2).map((p) => `${esc(p.nick)} ${p.score} 分`).join('、') || '—'}</p>` : ''}`;
   }
   function bindGive(root, after) {
     root.querySelectorAll('[data-give]').forEach((cb) => cb.onchange = async () => {
@@ -454,7 +454,7 @@
     $('#back').onclick = showHome;
     $('#toggleQR').onclick = (e) => { const on = $('.console').classList.toggle('show-qr'); e.currentTarget.setAttribute('aria-expanded', String(on)); e.currentTarget.textContent = on ? '收起 QR code' : '顯示 QR code'; };
     $('#copyLink').onclick = () => copy(url, '已複製連結');
-    $('#copyInvite').onclick = () => copy(`【${g.title}】搶答開始囉！\n手機打開 ${url}\n輸入暱稱就能加入（PIN：${g.pin}）\n題目會不定時跳出，最快答對拿小禮物 🎁`, '已複製邀請文字');
+    $('#copyInvite').onclick = () => copy(`【${g.title}】搶答開始囉！\n手機打開 ${url}\n輸入暱稱就能加入（PIN：${g.pin}）\n題目會不定時跳出，總分第一名拿小禮物 🎁`, '已複製邀請文字');
     drawPlayers(); C.viewKey = ''; drawStage();
   }
 
@@ -559,7 +559,6 @@
         ${rv.note ? `<p class="muted">${esc(rv.note)}</p>` : ''}
         <h3 style="margin-top:18px">最快答對</h3>
         ${fastestHTML(rv.fastest)}
-        ${rv.fastest && rv.fastest.length ? `<p class="gift"><span class="ico">${GIFT}</span>${esc(rv.fastest[0].nick)} 已記入得獎名單，獎品最後一起發</p>` : ''}
         <h3 style="margin-top:18px">目前總分前 5 名</h3>
         <ol class="rank">${C.players.slice(0, 5).map((p, i) => `<li><span class="n">${i + 1}</span><span>${esc(p.nickname)}</span><span class="s">${p.score}</span></li>`).join('')}</ol>
         ${isLast ? '' : nextPreview() + readySeg()}
@@ -572,7 +571,7 @@
       st.innerHTML = `<h2 class="center"><span class="mark">總排名</span></h2>
         ${podiumHTML(C.players)}
         <ol class="rank">${C.players.map((p, i) => `<li><span class="n">${i + 1}</span><span>${esc(p.nickname)}</span><span class="small muted">答對 ${p.correct_count}</span><span class="s">${p.score}</span></li>`).join('')}</ol>
-        <h3 style="margin-top:22px"><span class="ico">${GIFT}</span>這場得獎名單</h3>
+        <h3 style="margin-top:22px"><span class="ico">${GIFT}</span>這場冠軍（得獎者）</h3>
         <div id="winBox"><p class="muted small">整理中…</p></div>
         <div class="row" style="margin-top:16px"><button class="btn" id="homeBtn" type="button">回題庫，開下一場</button></div>`;
       $('#homeBtn').onclick = showHome;

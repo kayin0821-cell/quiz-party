@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#fbf4e2">
 <title>搶答派對</title>
-<meta name="description" content="輸入 PIN 碼加入搶答，最快答對拿小禮物。">
+<meta name="description" content="輸入 PIN 碼加入搶答，總分第一名拿小禮物。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E%F0%9F%8D%96%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
-<link rel="stylesheet" href="quiz.css?v=3">
+<link rel="stylesheet" href="quiz.css?v=4">
 </head>
 <body>
 <main class="wrap" id="app"></main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="quiz.js?v=3"></script>
+<script src="quiz.js?v=4"></script>
 <script>
 (function () {
   const { GIFT, announce, sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, store, SHAPES, grillHTML, updateGrill, rankOf, podiumHTML, fastestHTML } = QP;
@@ -48,7 +48,7 @@
     app.innerHTML = `${header()}
       <section class="card">
         <h1 class="title"><span class="mark">加入搶答</span></h1>
-        <p class="muted">主持人出題時，題目會直接出現在你的手機上。最快答對的人拿小禮物！</p>
+        <p class="muted">主持人出題時，題目會直接出現在你的手機上。答得又快又對分數越高，總分第一名拿小禮物！</p>
         <form id="joinForm" autocomplete="off">
           <label class="field" for="pin">PIN 碼（6 位數字）</label>
           <input class="text pin" id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="${pinFromUrl}" required>
@@ -273,7 +273,6 @@
       <section class="card">
         <h3>這題最快答對</h3>
         ${fastestHTML(rv.fastest, me.player_id)}
-        ${rv.fastest && rv.fastest[0] && rv.fastest[0].id === me.player_id ? '<p class="prize-note"><span class="ico">${GIFT}</span>你是這題最快答對！獎品最後一起發</p>' : ''}
       </section>
       <p class="center small muted" style="margin-top:14px">${game.q_index + 1 < game.q_total ? '下一題出現時，畫面會自動跳出並震動提醒。' : '這是最後一題，等主持人揭曉總排名。'}</p>`;
     if (a && !a.late) (mineOk ? sfx.right : sfx.wrong)();
@@ -298,7 +297,7 @@
         <h1 class="title"><span class="mark">遊戲結束</span></h1>
         ${podiumHTML(players, me.player_id)}
         ${mine ? `<p style="font-size:20px">你是第 <b>${r}</b> 名，${mine.score} 分，答對 ${mine.correct_count} 題</p>` : ''}
-        ${nPrize ? `<p class="prize-note big"><span class="ico">${GIFT}</span>你這場拿到 ${nPrize} 份小禮物<br><span class="small">獎品最後統一發放</span></p>` : ''}
+        ${nPrize ? `<p class="prize-note big"><span class="ico">${GIFT}</span>恭喜拿下冠軍！<br><span class="small">小禮物最後統一發放</span></p>` : ''}
         <p class="muted">謝謝參加！</p>
       </section>
       <p class="center" style="margin-top:16px"><button class="btn ghost" id="again" type="button">加入下一場</button></p>`;
