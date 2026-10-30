@@ -10,16 +10,16 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
-<link rel="stylesheet" href="quiz.css?v=2">
+<link rel="stylesheet" href="quiz.css?v=3">
 </head>
 <body>
-<main class="wrap" id="app" aria-live="polite"></main>
+<main class="wrap" id="app"></main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
-<script src="quiz.js?v=2"></script>
+<script src="quiz.js?v=3"></script>
 <script>
 (function () {
-  const { sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, store, SHAPES, grillHTML, updateGrill, rankOf, podiumHTML, fastestHTML } = QP;
+  const { GIFT, announce, sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, store, SHAPES, grillHTML, updateGrill, rankOf, podiumHTML, fastestHTML } = QP;
   const app = $('#app');
   const KEY = 'quizparty:player';
 
@@ -53,7 +53,7 @@
           <label class="field" for="pin">PIN 碼（6 位數字）</label>
           <input class="text pin" id="pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" value="${pinFromUrl}" required>
           <label class="field" for="nick">你的暱稱（大家會看到）</label>
-          <input class="text" id="nick" maxlength="12" value="${esc(lastNick)}" placeholder="例如：小安" required>
+          <input class="text" id="nick" maxlength="12" value="${esc(lastNick)}" placeholder="例如：小安" autocomplete="nickname" autocapitalize="off" enterkeyhint="go" required>
           <div style="margin-top:18px"><button class="btn block pink" id="joinBtn" type="submit">加入</button></div>
           <div class="msg err" id="joinMsg">${msg ? esc(msg) : ''}</div>
         </form>
@@ -144,6 +144,8 @@
     if (ph === 'lobby' && viewKey.startsWith('lobby')) { const c = $('[data-count]'); if (c) c.textContent = game.player_count; viewKey = key; return; }
     if (key === viewKey) return;
     viewKey = key;
+    const say = { lobby: '已加入，等待出題', ready: `第 ${game && game.q_index + 1} 題，準備作答`, open: '開始作答', sent: '已送出答案', timeup: '時間到', reveal: '公布答案', ended: '遊戲結束' }[ph];
+    if (say) announce(say);
     ({ lobby: viewLobby, ready: viewReady, open: viewOpen, sent: viewSent, timeup: viewTimeup, reveal: viewReveal, ended: viewEnded }[ph] || (() => {}))();
   }
 
@@ -264,14 +266,14 @@
       <section class="card" style="margin-top:14px">
         ${qHead()}
         <div class="opts">
-          ${q.options.map((o, i) => `<div class="opt o${i} ${i === rv.answer ? 'right' : 'dim'}"><span class="shape" aria-hidden="true">${SHAPES[i]}</span><span>${esc(o)}</span><span class="count">${counts[i] ?? 0} 人</span></div>`).join('')}
+          ${q.options.map((o, i) => `<div class="opt o${i} ${i === rv.answer ? 'right' : 'dim'}"><span class="shape" aria-hidden="true">${SHAPES[i]}</span><span>${esc(o)}</span>${a && !a.late && a.choice === i ? '<span class="mine">你選的</span>' : ''}<span class="count">${counts[i] ?? 0} 人</span></div>`).join('')}
         </div>
         ${rv.note ? `<p class="muted" style="margin-top:14px">${esc(rv.note)}</p>` : ''}
       </section>
       <section class="card">
         <h3>這題最快答對</h3>
         ${fastestHTML(rv.fastest, me.player_id)}
-        ${rv.fastest && rv.fastest[0] && rv.fastest[0].id === me.player_id ? '<p class="prize-note">🎁 你是這題最快答對！獎品最後一起發</p>' : ''}
+        ${rv.fastest && rv.fastest[0] && rv.fastest[0].id === me.player_id ? '<p class="prize-note"><span class="ico">${GIFT}</span>你是這題最快答對！獎品最後一起發</p>' : ''}
       </section>
       <p class="center small muted" style="margin-top:14px">${game.q_index + 1 < game.q_total ? '下一題出現時，畫面會自動跳出並震動提醒。' : '這是最後一題，等主持人揭曉總排名。'}</p>`;
     if (a && !a.late) (mineOk ? sfx.right : sfx.wrong)();
@@ -296,7 +298,7 @@
         <h1 class="title"><span class="mark">遊戲結束</span></h1>
         ${podiumHTML(players, me.player_id)}
         ${mine ? `<p style="font-size:20px">你是第 <b>${r}</b> 名，${mine.score} 分，答對 ${mine.correct_count} 題</p>` : ''}
-        ${nPrize ? `<p class="prize-note big">🎁 你這場拿到 ${nPrize} 份小禮物<br><span class="small">獎品最後統一發放</span></p>` : ''}
+        ${nPrize ? `<p class="prize-note big"><span class="ico">${GIFT}</span>你這場拿到 ${nPrize} 份小禮物<br><span class="small">獎品最後統一發放</span></p>` : ''}
         <p class="muted">謝謝參加！</p>
       </section>
       <p class="center" style="margin-top:16px"><button class="btn ghost" id="again" type="button">加入下一場</button></p>`;

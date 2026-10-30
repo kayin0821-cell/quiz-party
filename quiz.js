@@ -89,7 +89,21 @@
     del(k) { try { localStorage.removeItem(k); } catch (e) {} },
   };
 
-  const SHAPES = ['●', '▲', '■', '◆'];
+  // 形狀用 SVG 畫，各手機顯示一致（不用文字符號）
+  const svg = (inner) => `<svg viewBox="0 0 24 24" width="1em" height="1em" aria-hidden="true" focusable="false">${inner}</svg>`;
+  const SHAPES = [
+    svg('<circle cx="12" cy="12" r="8" fill="currentColor"/>'),
+    svg('<path d="M12 4 21 20H3z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>'),
+    svg('<rect x="5" y="5" width="14" height="14" rx="2" fill="currentColor"/>'),
+    svg('<path d="M12 2.5 21.5 12 12 21.5 2.5 12z" fill="currentColor" stroke="currentColor" stroke-width="1" stroke-linejoin="round"/>'),
+  ];
+  const GIFT = svg('<path d="M4 11h16v9a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM3 7h18v4H3zM12 7v14M12 7c-1.5-3-5-3.5-5-1s3.5 1 5 1c1.5 0 5 1.5 5-1s-3.5-2-5 1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/>');
+  // 給螢幕報讀用：只在狀態改變時念一次（計時數字不念）
+  function announce(text) {
+    let el = document.getElementById('sr-live');
+    if (!el) { el = document.createElement('div'); el.id = 'sr-live'; el.className = 'sr-only'; el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
+    el.textContent = ''; setTimeout(() => { el.textContent = text; }, 50);
+  }
   const LETTERS = ['A', 'B', 'C', 'D'];
 
   function grillHTML() {
@@ -128,5 +142,5 @@
     return `<ol class="fastest">${list.map((f, i) => `<li><span class="medal">${i + 1}</span><span class="${f.id === meId ? 'me' : ''}">${esc(f.nick)}</span><span class="sec">${Number(f.sec).toFixed(2)} 秒</span></li>`).join('')}</ol>`;
   }
 
-  window.QP = { sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, toast, store, SHAPES, LETTERS, grillHTML, updateGrill, rankOf, podiumHTML, fastestHTML };
+  window.QP = { GIFT, announce, sb, syncClock, now, $, esc, errMsg, unlockAudio, sfx, keepAwake, toast, store, SHAPES, LETTERS, grillHTML, updateGrill, rankOf, podiumHTML, fastestHTML };
 })();
