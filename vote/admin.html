@@ -105,6 +105,12 @@
       </section>
 
       <section class="card">
+        <h2>清空重來</h2>
+        <p class="small muted" style="margin:6px 0 10px">「重新開放投票」只是延長投票、保留已投的票。要把所有票和「已投票」紀錄歸零（例如正式開始前清掉試投票），請按下面的按鈕。投票碼不會改變。</p>
+        <button class="btn small pink" id="resetBtn" type="button">清空所有票，重新投票</button>
+      </section>
+
+      <section class="card">
         <div class="row spread"><h2>投票碼</h2>
           <div class="row"><button class="btn ghost small" id="copyCodes" type="button">複製全部（貼到 Excel）</button><button class="btn ghost small" id="printCodes" type="button">列印小紙條</button></div></div>
         <p class="small muted" style="margin:6px 0 10px">請私下發給本人。同仁忘記碼時，可以在這裡查。</p>
@@ -114,12 +120,19 @@
       </section>`;
     bindTop();
     $('#toggleBtn').onclick = async () => {
-      if (!confirm(st.is_open ? '現在就截止投票？截止後同仁就不能再投，你才能看結果。之後還可以重新開放。' : '重新開放投票？開放期間看不到結果；同仁頁面的得獎名單也會收起來，回到投票畫面。')) return;
+      if (!confirm(st.is_open ? '現在就截止投票？截止後同仁就不能再投，你才能看結果。之後還可以重新開放。' : '重新開放投票？已投的票會保留（要歸零請用下方「清空所有票」）。開放期間看不到結果，同仁頁的得獎名單也會收起來。')) return;
       const { error } = await sb.rpc('vote_admin_set_open', { p_open: !st.is_open });
       if (error) return toast(errMsg(error));
       load();
     };
     $('#reloadBtn').onclick = load;
+    $('#resetBtn').onclick = async () => {
+      if (!confirm(`確定清空所有票？目前已投 ${voted} 人的票會全部作廢，所有人都可以重新投一次。`)) return;
+      if (!confirm('再確認一次：清空後無法復原。確定要清空嗎？')) return;
+      const { error } = await sb.rpc('vote_admin_reset');
+      if (error) return toast(errMsg(error));
+      toast('已清空，投票重新開始'); load();
+    };
     $('#inviteBtn').onclick = () => copy(`【2026 諮詢科小天使票選】開始囉！\n最佳 Duty 1 名、最佳同事 5 名，每人每項一票，不記名。\n手機打開 ${VOTE_URL}\n輸入主管私下給你的 4 位數投票碼就能投票，不用填名字。\n11/12（四）23:59 截止，快來投下你神聖的一票！`, '已複製投票邀請');
     $('#qrBtn').onclick = (e) => {
       const box = $('#qrBox'); const on = box.classList.toggle('hidden') === false;
