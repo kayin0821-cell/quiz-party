@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=3">
+<link rel="stylesheet" href="vote.css?v=4">
 </head>
 <body>
 <main class="wrap" id="app"></main>
@@ -58,7 +58,8 @@
       if (String(error.message).includes('not_admin')) return showLogin('這個帳號沒有票選主持權限。');
       app.innerHTML = `${topbar()}<div class="msg err">${esc(errMsg(error))}</div>`; bindTop(); return;
     }
-    st = data; draw();
+    const pub = await sb.rpc('vote_public');
+    st = data; st.published = pub.data && pub.data.published; draw();
   }
 
   const fmtCode = (c) => String(c).replace(/^(\d{4})(\d{4})$/, '$1 $2');
@@ -90,6 +91,8 @@
         ${st.is_open ? `<p class="muted">投票截止後才能看結果，也才能進入揭曉模式。</p>` :
           `<p class="muted small">結果只有主持帳號看得到。聚餐時按「揭曉模式」，用手機或投影一個一個公布。</p>
            <div class="row" style="margin-top:10px"><button class="btn pink" id="revealBtn" type="button">進入揭曉模式</button><button class="btn ghost" id="resultBtn" type="button">先看完整票數</button></div>
+           <div class="msg info" style="margin-top:14px">${st.published ? '同仁的投票頁面<b>正在顯示得獎名單</b>（不含票數）。' : '同仁頁面還沒公布得獎名單。揭曉模式播到最後一頁時會自動公布，也可以手動公布。'}</div>
+           <div class="row" style="margin-top:8px"><button class="btn small ${st.published ? 'ghost' : ''}" id="pubBtn" type="button">${st.published ? '取消公布（同仁頁回到「已截止」）' : '公布得獎名單到同仁頁面'}</button></div>
            <div id="resultBox"></div>`}
       </section>
 
@@ -109,7 +112,7 @@
       </section>`;
     bindTop();
     $('#toggleBtn').onclick = async () => {
-      if (!confirm(st.is_open ? '截止投票？截止後同仁就不能再投，你才能看結果。之後還可以重新開放。' : '重新開放投票？開放期間看不到結果。')) return;
+      if (!confirm(st.is_open ? '截止投票？截止後同仁就不能再投，你才能看結果。之後還可以重新開放。' : '重新開放投票？開放期間看不到結果；同仁頁面的得獎名單也會收起來，回到投票畫面。')) return;
       const { error } = await sb.rpc('vote_admin_set_open', { p_open: !st.is_open });
       if (error) return toast(errMsg(error));
       load();
@@ -128,6 +131,12 @@
     };
     const rb = $('#resultBtn'); if (rb) rb.onclick = showResults;
     const rv = $('#revealBtn'); if (rv) rv.onclick = startReveal;
+    const pb = $('#pubBtn'); if (pb) pb.onclick = async () => {
+      if (!st.published && !confirm('公布後，同仁打開投票頁面就會看到得獎名單（不含票數）。確定公布？')) return;
+      const { error } = await sb.rpc('vote_admin_publish', { p_on: !st.published });
+      if (error) return toast(errMsg(error));
+      toast(st.published ? '已取消公布' : '已公布到同仁頁面'); load();
+    };
   }
 
   // ---------- 結果 ----------
@@ -162,7 +171,7 @@
       ...peerOrder.map((_, i) => ({ kind: 'peer-a', n: i + 1 })),
       { kind: 'end' },
     ];
-    let i = 0;
+    let i = 0, published = !!(st && st.published);
     const el = document.createElement('div');
     el.className = 'stage-reveal'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '揭曉模式');
     document.body.appendChild(el);
@@ -187,9 +196,10 @@
       const nx = $('#rvNext'); if (nx) { nx.onclick = next; nx.focus(); }
       $('#rvExit').onclick = exit;
       if (s.kind === 'duty-a' || s.kind === 'peer-a' || s.kind === 'end') { sfx.fanfare(); burst(); }
+      if (s.kind === 'end' && !published) { published = true; sb.rpc('vote_admin_publish', { p_on: true }).then(({ error }) => { if (!error) toast('已同步公布到同仁的投票頁面'); }); }
     }
     function next() { if (i < steps.length - 1) { i++; render(); } }
-    function exit() { el.remove(); document.removeEventListener('keydown', onKey); try { document.fullscreenElement && document.exitFullscreen(); } catch (e) {} }
+    function exit() { load(); el.remove(); document.removeEventListener('keydown', onKey); try { document.fullscreenElement && document.exitFullscreen(); } catch (e) {} }
     function onKey(e) { if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); } if (e.key === 'ArrowLeft' && i > 0) { i--; render(); } if (e.key === 'Escape') exit(); }
     document.addEventListener('keydown', onKey);
     render();

@@ -134,6 +134,11 @@ input.code8:focus { border-style: solid; border-color: var(--pink); }
 }
 @keyframes halo { from { transform: translateY(-8px) scale(.5); opacity: 0; } }
 
+/* 得獎名單 */
+.winners-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
+.winchip { cursor: default; font-size: 22px; min-height: 76px; padding-top: 16px; }
+.winchip:active { transform: none; }
+
 /* 送出列 */
 .ballotbar {
   position: sticky; bottom: 0; z-index: 10; margin: 18px -4px 0;

@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="preload" as="image" href="img/angel-pray.webp">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=3">
+<link rel="stylesheet" href="vote.css?v=4">
 </head>
 <body>
 <main class="wrap" id="app"><p class="muted center" style="margin-top:40px">載入中…</p></main>
@@ -22,6 +22,7 @@
 <script>
 (function () {
   const { sb, $, esc, toast, store, announce } = QP;
+  let view = 'intro', published = null;
   const app = $('#app');
   const TEAMS = ['一組', '二組', '三組', '四組', '五組', '六組'];
   const DEADLINE = '11/14 前截止投票';
@@ -44,6 +45,8 @@
 
   // ---------- 首頁 ----------
   function showIntro() {
+    if (published) return showWinners();
+    view = 'intro';
     const done = store.get('angelvote:done');
     app.innerHTML = `
       <header class="hero">
@@ -77,6 +80,7 @@
 
   // ---------- 投票碼 ----------
   function showCode(msg) {
+    view = 'code';
     app.innerHTML = `
       <div class="brand" style="margin-top:6px"><div class="logo"><b>小天使票選</b></div><button class="btn ghost small" type="button" id="backBtn">回首頁</button></div>
       <section class="cloudcard codebox" style="margin-top:92px">
@@ -112,6 +116,7 @@
 
   // ---------- 選票 ----------
   function showBallot() {
+    view = 'ballot';
     const duties = people.filter((p) => p.is_duty);
     app.innerHTML = `
       <div class="brand" style="margin-top:6px"><div class="logo"><b>你的選票</b>　<span class="small">第 2 步／共 2 步</span></div><button class="btn ghost small" type="button" id="backBtn">上一步</button></div>
@@ -183,6 +188,7 @@
   }
 
   function showDone(already) {
+    view = 'done';
     code = '';
     app.innerHTML = `
       <section class="cloudcard center" style="margin-top:40px">
@@ -198,11 +204,71 @@
     $('#homeBtn').onclick = () => showIntro();
   }
 
+  // ---------- 得獎名單（主持人公布後） ----------
+  function showWinners(celebrate) {
+    view = 'winners';
+    const chips = (arr) => arr.map((p) => `<div class="name winchip" aria-pressed="true">${esc(p.name)}<small>${esc(p.team)}</small></div>`).join('');
+    app.innerHTML = `
+      <header class="hero" style="padding-bottom:0">
+        ${deco(STAR(22), 'left:8%;top:10px', true)}${deco(SPARK(16), 'right:14%;top:6px', true)}${deco(HEART(20), 'right:6%;top:70px')}${deco(SPARK(12, 'var(--pink)'), 'left:20%;top:80px', true)}
+        ${IMG('pray', 'sticker l')}${IMG('star', 'sticker r')}
+        <span class="year">2026</span>
+        <h1 class="title-big">諮詢科<br>小天使</h1>
+        <div class="ribbon-row">${WING}<span class="ribbon">得獎名單</span><span class="wing r" style="display:inline-flex">${WING}</span></div>
+      </header>
+      <p class="callout">恭喜所有小天使！<br>謝謝大家投下神聖的一票</p>
+      <section class="cloudcard" style="margin-top:20px">
+        <div class="section-head">${CROWN(1, 'var(--gold)')}<h2>最佳 Duty</h2></div>
+        <p class="sub">最可靠的神隊友，關鍵時刻總能即時支援！</p>
+        <div class="names winners-grid">${chips(published.duty || [])}</div>
+      </section>
+      <section class="cloudcard">
+        <div class="section-head">${CROWN(2, '#4a8fd0')}<h2>最佳同事</h2></div>
+        <p class="sub">暖心又給力，讓工作更順利、團隊更有溫度！</p>
+        <div class="names winners-grid">${chips(published.peer || [])}</div>
+      </section>
+      <p class="lead small">每一份幫助都值得被看見，每一份付出都值得被肯定。</p>
+      <p class="signoff">Together We are Stronger!</p>
+      <p class="small muted center" style="margin:4px 0 8px">諮詢科最強二線，因為有你們而更強大！</p>`;
+    announce('得獎名單已公布');
+    if (celebrate) burst();
+  }
+
+  function burst() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c = document.createElement('canvas'); c.className = 'burst'; document.body.appendChild(c);
+    const ctx = c.getContext('2d'); const W = c.width = innerWidth, H = c.height = innerHeight;
+    const colors = ['#ee6b93', '#ffe066', '#7fbfe9', '#f2b730', '#ffffff'];
+    const ps = Array.from({ length: 90 }, () => ({ x: W / 2 + (Math.random() - .5) * W * .4, y: H * .35, vx: (Math.random() - .5) * 12, vy: -Math.random() * 12 - 3, r: Math.random() * 6 + 4, c: colors[Math.random() * colors.length | 0], a: Math.random() * 6 }));
+    let t = 0;
+    (function frame() {
+      ctx.clearRect(0, 0, W, H);
+      ps.forEach((p) => { p.vy += .3; p.x += p.vx; p.y += p.vy; p.a += .15; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.c; ctx.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); ctx.restore(); });
+      if (++t < 130) requestAnimationFrame(frame); else c.remove();
+    })();
+  }
+
+  // 主持人公布／取消公布、截止／開放時，畫面即時切換
+  async function syncPublic(fromLive) {
+    const { data } = await sb.rpc('vote_public');
+    if (!data) return;
+    const wasPub = !!published, wasOpen = isOpen;
+    published = data.published; isOpen = data.is_open;
+    if (published && !wasPub) showWinners(fromLive);
+    else if (!published && wasPub) showIntro();
+    else if (wasOpen !== isOpen && view === 'intro') showIntro();
+  }
+
   (async function boot() {
     const { data, error } = await sb.rpc('vote_roster');
     if (error || !data) { app.innerHTML = `<div class="msg err" style="margin-top:40px">連不上投票系統，請確認網路後重新整理。</div>`; return; }
     people = data; isOpen = data.length ? data[0].is_open : false;
+    const pub = await sb.rpc('vote_public');
+    published = pub.data && pub.data.published;
     showIntro();
+    sb.channel('angel-vote').on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'vote_settings' }, () => syncPublic(true)).subscribe();
+    setInterval(() => { if (document.visibilityState === 'visible' && (view === 'intro' || view === 'winners')) syncPublic(true); }, 20000);
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncPublic(true); });
   })();
 })();
 </script>
