@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=5">
+<link rel="stylesheet" href="vote.css?v=6">
 </head>
 <body>
 <main class="wrap" id="app"></main>
@@ -118,7 +118,7 @@
       load();
     };
     $('#reloadBtn').onclick = load;
-    $('#inviteBtn').onclick = () => copy(`【2026 諮詢科小天使票選】開始囉！\n最佳 Duty 1 名、最佳同事 5 名，每人每項一票，不記名。\n手機打開 ${VOTE_URL}\n輸入主管私下給你的 8 位數投票碼就能投票，不用填名字。\n11/14 前截止投票，快來投下你神聖的一票！`, '已複製投票邀請');
+    $('#inviteBtn').onclick = () => copy(`【2026 諮詢科小天使票選】開始囉！\n最佳 Duty 1 名、最佳同事 5 名，每人每項一票，不記名。\n手機打開 ${VOTE_URL}\n輸入主管私下給你的 4 位數投票碼就能投票，不用填名字。\n11/14 前截止投票，快來投下你神聖的一票！`, '已複製投票邀請');
     $('#qrBtn').onclick = (e) => {
       const box = $('#qrBox'); const on = box.classList.toggle('hidden') === false;
       e.currentTarget.setAttribute('aria-expanded', String(on)); e.currentTarget.textContent = on ? '收起 QR code' : '顯示 QR code';

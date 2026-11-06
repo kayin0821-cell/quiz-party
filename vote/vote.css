@@ -104,7 +104,7 @@ body {
 .codebox { text-align: center; }
 .codebox h2 { font-size: 26px; }
 input.code8 {
-  width: 100%; margin-top: 14px; padding: 14px 10px; font-size: 34px; letter-spacing: .14em; text-align: center; font-variant-numeric: tabular-nums;
+  width: 100%; margin-top: 14px; padding: 14px 10px; font-size: 44px; letter-spacing: .4em; text-indent: .4em; text-align: center; font-variant-numeric: tabular-nums;
   border: 3px dashed var(--sky-2); border-radius: 18px; background: #fff; color: var(--ink); outline: none;
 }
 input.code8:focus { border-style: solid; border-color: var(--pink); }

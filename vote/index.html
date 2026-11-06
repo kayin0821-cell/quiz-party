@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="preload" as="image" href="img/angel-pray.webp">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=5">
+<link rel="stylesheet" href="vote.css?v=6">
 </head>
 <body>
 <main class="wrap" id="app"><p class="muted center" style="margin-top:40px">載入中…</p></main>
@@ -41,7 +41,7 @@
   let pick = { duty: null, peer: null };
   let peerTeam = '一組', peerQuery = '';
   const byId = (id) => people.find((p) => p.id === id);
-  const fmt = (v) => v.replace(/\D/g, '').slice(0, 8).replace(/^(\d{4})(\d)/, '$1 $2');
+  const fmt = (v) => v.replace(/\D/g, '').slice(0, 4);
 
   // ---------- 首頁 ----------
   function showIntro() {
@@ -88,8 +88,8 @@
         <div class="step" style="color:var(--ink-soft)">第 1 步／共 2 步</div>
         <h2>輸入你的投票碼</h2>
         <form id="codeForm" autocomplete="off">
-          <label class="sr-only" for="code">8 位數投票碼</label>
-          <input class="code8" id="code" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="go" placeholder="0000 0000" required>
+          <label class="sr-only" for="code">4 位數投票碼</label>
+          <input class="code8" id="code" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="go" placeholder="0000" maxlength="4" required>
           <div class="privacy">${EYEOFF}<span>投票碼由主管私下發給你。系統只記得「這組碼用過了」，選票上不會記錄是誰投的，連主辦人也看不到。</span></div>
           <button class="btn block pink" id="codeBtn" type="submit" style="margin-top:16px;min-height:56px;font-size:20px">下一步</button>
           <div class="msg err" id="codeMsg" role="alert">${msg ? esc(msg) : ''}</div>
@@ -97,17 +97,17 @@
       </section>`;
     $('#backBtn').onclick = () => showIntro();
     const inp = $('#code'); inp.focus();
-    inp.addEventListener('input', () => { inp.value = fmt(inp.value); });
+    inp.addEventListener('input', () => { inp.value = fmt(inp.value); $('#codeMsg').textContent = ''; });
     $('#codeForm').onsubmit = async (e) => {
       e.preventDefault();
       const v = inp.value.replace(/\D/g, '');
-      if (v.length !== 8) return ($('#codeMsg').textContent = '投票碼是 8 位數字，請再確認一次。');
+      if (v.length !== 4) return ($('#codeMsg').textContent = '投票碼是 4 位數字，請再確認一次。');
       const btn = $('#codeBtn'); btn.disabled = true; btn.textContent = '確認中…';
       const { data, error } = await sb.rpc('vote_check', { p_code: v });
       btn.disabled = false; btn.textContent = '下一步';
       if (error) return ($('#codeMsg').textContent = '網路不穩，請確認連線後再試一次。');
       if (data === 'already') return showDone(true);
-      const M = { bad_code: '找不到這組投票碼，請再確認一次。', closed: '投票已經截止了。', busy: '目前嘗試次數太多，請過幾分鐘再試。' };
+      const M = { bad_code: '找不到這組投票碼，請再確認一次。', closed: '投票已經截止了。', busy: '輸錯太多次了，請過 10 分鐘再試，或找主管確認你的投票碼。' };
       if (data !== 'ok') return ($('#codeMsg').textContent = M[data] || '發生錯誤，請再試一次。');
       code = v; pick = { duty: null, peer: null }; peerQuery = '';
       showBallot();
@@ -183,7 +183,7 @@
       if (data === 'ok') { close(); store.set('angelvote:done', true); return showDone(false); }
       if (data === 'already') { close(); return showDone(true); }
       b.disabled = false; b.textContent = '送出投票';
-      $('#cfMsg').textContent = { closed: '投票已經截止了。', busy: '目前嘗試次數太多，請過幾分鐘再試。' }[data] || '發生錯誤，請重新整理後再試一次。';
+      $('#cfMsg').textContent = { closed: '投票已經截止了。', busy: '輸錯太多次了，請過 10 分鐘再試，或找主管確認你的投票碼。' }[data] || '發生錯誤，請重新整理後再試一次。';
     };
   }
 
