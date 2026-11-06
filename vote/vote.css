@@ -129,15 +129,27 @@ input.code8:focus { border-style: solid; border-color: var(--pink); }
 .name:active { transform: scale(.96); }
 .name[aria-pressed="true"] { border-color: var(--pink); background: var(--pink-soft); box-shadow: 0 3px 0 var(--pink); }
 .name[aria-pressed="true"]::before {
-  content: ""; position: absolute; top: -9px; left: 50%; width: 34px; height: 11px; margin-left: -17px;
-  border: 3px solid var(--gold); border-radius: 50%; background: transparent; animation: halo .35s cubic-bezier(.2, .9, .3, 1.3);
+  content: ""; position: absolute; top: -9px; right: -7px; width: 26px; height: 26px; border-radius: 50%;
+  background: var(--pink) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='white' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 18px no-repeat; box-shadow: 0 2px 0 #c94a73;
+  animation: pop-check .3s cubic-bezier(.2, .9, .3, 1.4);
 }
-@keyframes halo { from { transform: translateY(-8px) scale(.5); opacity: 0; } }
+@keyframes pop-check { from { transform: scale(.3); opacity: 0; } }
 
 /* 得獎名單 */
-.winners-grid { grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); }
-.winchip { cursor: default; font-size: 22px; min-height: 76px; padding-top: 16px; }
-.winchip:active { transform: none; }
+.medal-card { display: flex; align-items: center; gap: 14px; background: linear-gradient(135deg, #fff7d6, #fffdf6 70%); border-radius: 22px 28px 22px 28px; padding: 14px 16px; }
+.medal-card + .medal-card { margin-top: 10px; }
+.medal { flex: none; width: 82px; height: 96px; }
+.medal-card .win-name { font-size: clamp(30px, 9vw, 40px); line-height: 1.15; -webkit-text-stroke: 5px #fff; paint-order: stroke fill; }
+.team-pill { display: inline-block; margin-top: 4px; background: var(--ink); color: #fff; border-radius: 999px; padding: 1px 12px; font-size: 14px; }
+.win-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.win-card { position: relative; text-align: center; border-radius: 20px 26px 20px 26px; padding: 18px 8px 12px; }
+.win-card.c0 { background: var(--pink-soft); }
+.win-card.c1 { background: var(--yellow-soft); }
+.win-card.c2 { background: var(--blue-soft); }
+.win-card b { display: block; font-size: 24px; font-weight: 400; }
+.win-card small { display: block; font-size: 13px; color: var(--ink-soft); margin-top: 2px; }
+.win-card .star-badge { position: absolute; top: -10px; left: -6px; transform: rotate(-14deg); filter: drop-shadow(0 2px 0 rgba(31, 63, 134, .15)); }
+.win-card:nth-child(even) .star-badge { left: auto; right: -6px; transform: rotate(12deg); }
 
 /* 送出列 */
 .ballotbar {
@@ -173,7 +185,7 @@ input.code8:focus { border-style: solid; border-color: var(--pink); }
 .stage-reveal .winner small { display: block; font-size: clamp(16px, 3vw, 24px); color: var(--ink-soft); -webkit-text-stroke: 0; }
 .stage-reveal .winners { display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; max-width: 920px; }
 .stage-reveal .chip-win { position: relative; background: #fff; border: 3px solid var(--line); border-radius: 22px 26px 22px 26px; padding: 14px 22px 10px; font-size: clamp(24px, 5vw, 40px); }
-.stage-reveal .chip-win::before { content: ""; position: absolute; top: -10px; left: 50%; width: 40px; height: 12px; margin-left: -20px; border: 3px solid var(--gold); border-radius: 50%; }
+.stage-reveal .chip-win .star-badge { position: absolute; top: -14px; left: -10px; transform: rotate(-14deg); }
 .stage-reveal .chip-win.new { animation: land .6s cubic-bezier(.2, .9, .3, 1.2); background: var(--pink-soft); border-color: var(--pink); }
 .stage-reveal .mystery { width: clamp(140px, 30vw, 220px); }
 .stage-reveal .controls { display: flex; gap: 10px; justify-content: center; padding: 12px 16px calc(16px + env(safe-area-inset-bottom)); }

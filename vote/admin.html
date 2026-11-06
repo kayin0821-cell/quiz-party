@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=4">
+<link rel="stylesheet" href="vote.css?v=5">
 </head>
 <body>
 <main class="wrap" id="app"></main>
@@ -178,7 +178,7 @@
     try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); } catch (e) {}
     const HALO = '<img src="img/angel-heart.webp" alt="" width="150" style="width:clamp(110px,18vw,170px);height:auto">';
     const ASK = '<img class="mystery" src="img/angel-pray.webp" alt="">';
-    const names = (arr, cls = '') => `<div class="winners">${arr.map((p) => `<div class="chip-win ${cls}">${esc(p.name)}<small class="small muted" style="display:block;font-size:16px">${p.team}</small></div>`).join('')}</div>`;
+    const names = (arr, cls = '') => `<div class="winners">${arr.map((p) => `<div class="chip-win ${cls}"><span class="star-badge"><svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.1l6.1-.7z" fill="#f2b730" stroke="#f2b730" stroke-width="1.6" stroke-linejoin="round"/></svg></span>${esc(p.name)}<small class="small muted" style="display:block;font-size:16px">${p.team}</small></div>`).join('')}</div>`;
     function render() {
       const s = steps[i];
       let body = '';
@@ -186,7 +186,7 @@
       if (s.kind === 'duty-q') body = `<div class="award-name">最佳 Duty</div><p class="muted">最可靠的神隊友，關鍵時刻總能即時支援</p>${ASK}`;
       if (s.kind === 'duty-a') body = `<div class="award-name">最佳 Duty</div>${HALO}${r.dutyWin.length ? `<div class="winner">${r.dutyWin.map((p) => esc(p.name)).join('、')}<small>${r.dutyWin.map((p) => p.team).join('、')}</small></div>${r.dutyWin.length > 1 ? `<p class="tie">同票並列</p>` : ''}` : '<p>沒有票</p>'}`;
       if (s.kind === 'peer-q') body = `<div class="award-name">最佳同事</div><p class="muted">暖心又給力，讓工作更順利、團隊更有溫度</p>${ASK}<p class="muted">共 ${r.peerWin.length} 位${r.peerWin.length > 5 ? '（含同票並列）' : ''}</p>`;
-      if (s.kind === 'peer-a') body = `<div class="award-name">最佳同事</div><div class="winners">${peerOrder.slice(0, s.n).map((p, k) => `<div class="chip-win ${k === s.n - 1 ? 'new' : ''}">${esc(p.name)}<small class="small muted" style="display:block;font-size:16px">${p.team}</small></div>`).join('')}</div>${r.peerWin.length > 5 && s.n === peerOrder.length ? `<p class="tie">第 5 名同票，${r.peerWin.length} 位並列</p>` : ''}`;
+      if (s.kind === 'peer-a') body = `<div class="award-name">最佳同事</div><div class="winners">${peerOrder.slice(0, s.n).map((p, k) => `<div class="chip-win ${k === s.n - 1 ? 'new' : ''}"><span class="star-badge"><svg width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.1l6.1-.7z" fill="#f2b730" stroke="#f2b730" stroke-width="1.6" stroke-linejoin="round"/></svg></span>${esc(p.name)}<small class="small muted" style="display:block;font-size:16px">${p.team}</small></div>`).join('')}</div>${r.peerWin.length > 5 && s.n === peerOrder.length ? `<p class="tie">第 5 名同票，${r.peerWin.length} 位並列</p>` : ''}`;
       if (s.kind === 'end') body = `${HALO}<div class="award-name">恭喜所有小天使！</div><div class="award-name" style="font-size:22px;margin-top:6px">最佳 Duty</div>${names(r.dutyWin)}<div class="award-name" style="font-size:22px;margin-top:10px">最佳同事</div>${names(r.peerWin)}<p class="muted">諮詢科最強二線，因為有你們而更強大！</p>`;
       el.innerHTML = `<div class="inner">${body}</div>
         <div class="controls"><button class="btn ghost small" id="rvPrev" type="button" ${i === 0 ? 'disabled' : ''}>上一步</button>

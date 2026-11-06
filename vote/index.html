@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="preload" as="image" href="img/angel-pray.webp">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=4">
+<link rel="stylesheet" href="vote.css?v=5">
 </head>
 <body>
 <main class="wrap" id="app"><p class="muted center" style="margin-top:40px">載入中…</p></main>
@@ -207,7 +207,15 @@
   // ---------- 得獎名單（主持人公布後） ----------
   function showWinners(celebrate) {
     view = 'winners';
-    const chips = (arr) => arr.map((p) => `<div class="name winchip" aria-pressed="true">${esc(p.name)}<small>${esc(p.team)}</small></div>`).join('');
+    const MEDAL = `<svg class="medal" viewBox="0 0 82 96" aria-hidden="true">
+        <path d="M24 52 12 92l14-7 8 11 8-38z" fill="var(--pink)"/><path d="M58 52l12 40-14-7-8 11-8-38z" fill="#4a8fd0"/>
+        <circle cx="41" cy="38" r="34" fill="var(--gold)"/>
+        <circle cx="41" cy="38" r="34" fill="none" stroke="#fff" stroke-width="3" stroke-dasharray="4 5" opacity=".7"/>
+        <circle cx="41" cy="38" r="25" fill="#fff8dc"/>
+        <path d="M27 46 25 29l8 6 8-11 8 11 8-6-2 17z" fill="var(--gold)" stroke="#d79b12" stroke-width="2" stroke-linejoin="round"/>
+      </svg>`;
+    const duty = (arr) => arr.map((p) => `<div class="medal-card">${MEDAL}<div><div class="win-name">${esc(p.name)}</div><span class="team-pill">${esc(p.team)}</span></div></div>`).join('');
+    const cards = (arr) => `<div class="win-cards">${arr.map((p, i) => `<div class="win-card c${i % 3}"><span class="star-badge">${STAR(30)}</span><b>${esc(p.name)}</b><small>${esc(p.team)}</small></div>`).join('')}</div>`;
     app.innerHTML = `
       <header class="hero" style="padding-bottom:0">
         ${deco(STAR(22), 'left:8%;top:10px', true)}${deco(SPARK(16), 'right:14%;top:6px', true)}${deco(HEART(20), 'right:6%;top:70px')}${deco(SPARK(12, 'var(--pink)'), 'left:20%;top:80px', true)}
@@ -220,12 +228,12 @@
       <section class="cloudcard" style="margin-top:20px">
         <div class="section-head">${CROWN(1, 'var(--gold)')}<h2>最佳 Duty</h2></div>
         <p class="sub">最可靠的神隊友，關鍵時刻總能即時支援！</p>
-        <div class="names winners-grid">${chips(published.duty || [])}</div>
+        ${duty(published.duty || [])}
       </section>
       <section class="cloudcard">
         <div class="section-head">${CROWN(2, '#4a8fd0')}<h2>最佳同事</h2></div>
         <p class="sub">暖心又給力，讓工作更順利、團隊更有溫度！</p>
-        <div class="names winners-grid">${chips(published.peer || [])}</div>
+        ${cards(published.peer || [])}
       </section>
       <p class="lead small">每一份幫助都值得被看見，每一份付出都值得被肯定。</p>
       <p class="signoff">Together We are Stronger!</p>
