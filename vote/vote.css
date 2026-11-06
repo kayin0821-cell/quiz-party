@@ -136,9 +136,11 @@ input.code8:focus { border-style: solid; border-color: var(--pink); }
 @keyframes pop-check { from { transform: scale(.3); opacity: 0; } }
 
 /* 得獎名單 */
-.medal-card { display: flex; align-items: center; gap: 14px; background: linear-gradient(135deg, #fff7d6, #fffdf6 70%); border-radius: 22px 28px 22px 28px; padding: 14px 16px; }
-.medal-card + .medal-card { margin-top: 10px; }
-.medal { flex: none; width: 82px; height: 96px; }
+.medal-list { display: grid; gap: 10px; }
+.medal-card { display: flex; align-items: center; gap: 14px; border-radius: 22px 28px 22px 28px; padding: 12px 16px; }
+.medal-card.duty { background: linear-gradient(135deg, #fff3c4, #fffdf6 75%); }
+.medal-card.peer { background: linear-gradient(135deg, #dceeff, #fffdf6 75%); }
+.medal { flex: none; width: 70px; height: 82px; }
 .medal-card .win-name { font-size: clamp(30px, 9vw, 40px); line-height: 1.15; -webkit-text-stroke: 5px #fff; paint-order: stroke fill; }
 .team-pill { display: inline-block; margin-top: 4px; background: var(--ink); color: #fff; border-radius: 999px; padding: 1px 12px; font-size: 14px; }
 .win-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
