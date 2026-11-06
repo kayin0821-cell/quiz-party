@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#eaf5fd">
+<title>小天使票選・主持</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cellipse cx=%2250%22 cy=%2250%22 rx=%2240%22 ry=%2216%22 fill=%22none%22 stroke=%22%23f2b730%22 stroke-width=%2210%22/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
+<link rel="stylesheet" href="../quiz.css?v=4">
+<link rel="stylesheet" href="vote.css?v=1">
+</head>
+<body>
+<main class="wrap" id="app"></main>
+<div id="slips"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+<script src="../quiz.js?v=4"></script>
+<script>
+(function () {
+  const { sb, $, esc, toast, errMsg, sfx, unlockAudio } = QP;
+  const app = $('#app');
+  const DOMAIN = '@players.taiwan3d.app';
+  const VOTE_URL = new URL('./', location.href).href;
+  let user = null, st = null;
+
+  function topbar() {
+    return `<div class="brand"><div class="logo"><b>小天使票選</b>　主持人</div>${user ? `<div class="row"><span class="me-chip">${esc(user.email.replace(DOMAIN, ''))}</span><button class="btn ghost small" id="logoutBtn" type="button">登出</button></div>` : ''}</div>`;
+  }
+  function bindTop() { const b = $('#logoutBtn'); if (b) b.onclick = async () => { await sb.auth.signOut(); user = null; showLogin(); }; }
+  async function copy(text, ok) { try { await navigator.clipboard.writeText(text); toast(ok); } catch (e) { prompt('請長按複製：', text); } }
+
+  function showLogin(msg) {
+    app.innerHTML = `${topbar()}
+      <section class="card" style="max-width:460px;margin:0 auto">
+        <h1 class="title"><span class="mark">主持人登入</span></h1>
+        <p class="muted">用搶答派對的主持帳號（sup）登入。</p>
+        <form id="lf"><label class="field" for="u">帳號</label><input class="text" id="u" autocomplete="username" required>
+          <label class="field" for="p">密碼</label><input class="text" id="p" type="password" autocomplete="current-password" required>
+          <div style="margin-top:18px"><button class="btn block" id="lb" type="submit">登入</button></div><div class="msg err" id="lm">${msg ? esc(msg) : ''}</div></form>
+      </section>`;
+    $('#lf').onsubmit = async (e) => {
+      e.preventDefault(); $('#lb').disabled = true;
+      const u = $('#u').value.trim().toLowerCase();
+      const { data, error } = await sb.auth.signInWithPassword({ email: u.includes('@') ? u : u + DOMAIN, password: $('#p').value });
+      $('#lb').disabled = false;
+      if (error) return ($('#lm').textContent = errMsg(error));
+      user = data.user; load();
+    };
+  }
+
+  async function load() {
+    const { data, error } = await sb.rpc('vote_admin_status');
+    if (error) {
+      if (String(error.message).includes('not_admin')) return showLogin('這個帳號沒有票選主持權限。');
+      app.innerHTML = `${topbar()}<div class="msg err">${esc(errMsg(error))}</div>`; bindTop(); return;
+    }
+    st = data; draw();
+  }
+
+  function groups(list) {
+    const m = new Map();
+    list.forEach((p) => { if (!m.has(p.team)) m.set(p.team, []); m.get(p.team).push(p); });
+    return [...m.entries()];
+  }
+
+  function draw() {
+    const ppl = st.people, voted = ppl.filter((p) => p.has_voted).length, total = ppl.length;
+    const pending = ppl.filter((p) => !p.has_voted);
+    app.innerHTML = `${topbar()}
+      <section class="card">
+        <div class="row spread"><h2>${st.is_open ? '投票進行中' : '投票已截止'}</h2>
+          <button class="btn small ${st.is_open ? 'ghost' : ''}" id="toggleBtn" type="button">${st.is_open ? '截止投票' : '重新開放投票'}</button></div>
+        <p style="margin:12px 0 6px">已投票 <b style="font-size:26px">${voted}</b> ／ ${total} 人</p>
+        <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="${total}" aria-valuenow="${voted}"><span style="width:${(voted / total * 100).toFixed(1)}%"></span></div>
+        <div class="row" style="margin-top:14px">
+          <button class="btn small pink" id="inviteBtn" type="button">複製投票邀請（貼到 M+）</button>
+          <button class="btn ghost small" id="qrBtn" type="button" aria-expanded="false">顯示 QR code</button>
+          <button class="btn ghost small" id="reloadBtn" type="button">重新整理</button>
+        </div>
+        <div id="qrBox" class="hidden" style="margin-top:12px;text-align:center"><div class="qr" id="qr" style="width:200px;height:200px;margin:0 auto;background:#fff;padding:8px;border:2px solid var(--ink);border-radius:12px"></div><p class="small muted">${esc(VOTE_URL.replace(/^https?:\/\//, ''))}</p></div>
+      </section>
+
+      <section class="card">
+        <h2>結果</h2>
+        ${st.is_open ? `<p class="muted">投票截止後才能看結果，也才能進入揭曉模式。</p>` :
+          `<p class="muted small">結果只有主持帳號看得到。聚餐時按「揭曉模式」，用手機或投影一個一個公布。</p>
+           <div class="row" style="margin-top:10px"><button class="btn pink" id="revealBtn" type="button">進入揭曉模式</button><button class="btn ghost" id="resultBtn" type="button">先看完整票數</button></div>
+           <div id="resultBox"></div>`}
+      </section>
+
+      <section class="card">
+        <div class="row spread"><h2>還沒投票（${pending.length}）</h2></div>
+        <p class="small muted" style="margin:4px 0 10px">只看得到誰還沒投，看不到任何人投給誰。粉紅色是輸錯碼太多次被鎖住的人，點一下解鎖。</p>
+        ${pending.length ? groups(pending).map(([t, l]) => `<div class="teamblock"><h4>${t}</h4><div class="pending">${l.map((p) => p.locked ? `<span class="locked"><button class="backlink" style="min-height:0;padding:0;color:inherit" data-unlock="${p.id}" type="button">${esc(p.name)}（已鎖定・點此解鎖）</button></span>` : `<span>${esc(p.name)}</span>`).join('')}</div></div>`).join('') : '<p>全員都投完了！</p>'}
+      </section>
+
+      <section class="card">
+        <div class="row spread"><h2>投票碼</h2>
+          <div class="row"><button class="btn ghost small" id="copyCodes" type="button">複製全部（貼到 Excel）</button><button class="btn ghost small" id="printCodes" type="button">列印小紙條</button></div></div>
+        <p class="small muted" style="margin:6px 0 10px">請私下發給本人。同仁忘記碼時，可以在這裡查。</p>
+        <details><summary>展開投票碼名單（${total} 人）</summary>
+          ${groups(ppl).map(([t, l]) => `<div class="teamblock" style="margin-top:12px"><h4>${t}</h4><table class="codes"><tbody>${l.map((p) => `<tr><td>${esc(p.name)}</td><td class="code">${p.code}</td><td class="small muted">${p.has_voted ? '已投' : ''}</td></tr>`).join('')}</tbody></table></div>`).join('')}
+        </details>
+      </section>`;
+    bindTop();
+    $('#toggleBtn').onclick = async () => {
+      if (!confirm(st.is_open ? '截止投票？截止後同仁就不能再投，你才能看結果。之後還可以重新開放。' : '重新開放投票？開放期間看不到結果。')) return;
+      const { error } = await sb.rpc('vote_admin_set_open', { p_open: !st.is_open });
+      if (error) return toast(errMsg(error));
+      load();
+    };
+    $('#reloadBtn').onclick = load;
+    $('#inviteBtn').onclick = () => copy(`【2026 諮詢科小天使票選】開始囉！\n最佳 Duty 1 名、最佳同事 5 名，每人每項一票，不記名。\n手機打開 ${VOTE_URL}\n選你的名字、輸入主管私下給你的 6 位數投票碼就能投票。\n快來投下你神聖的一票！`, '已複製投票邀請');
+    $('#qrBtn').onclick = (e) => {
+      const box = $('#qrBox'); const on = box.classList.toggle('hidden') === false;
+      e.currentTarget.setAttribute('aria-expanded', String(on)); e.currentTarget.textContent = on ? '收起 QR code' : '顯示 QR code';
+      if (on && !$('#qr').innerHTML) { try { const q = qrcode(0, 'M'); q.addData(VOTE_URL); q.make(); $('#qr').innerHTML = q.createSvgTag({ scalable: true, margin: 0 }); } catch (err) {} }
+    };
+    app.querySelectorAll('[data-unlock]').forEach((b) => b.onclick = async () => {
+      const { error } = await sb.rpc('vote_admin_unlock', { p_person: +b.dataset.unlock });
+      if (error) return toast(errMsg(error));
+      toast('已解鎖'); load();
+    });
+    $('#copyCodes').onclick = () => copy('組別\t姓名\t投票碼\n' + ppl.map((p) => `${p.team}\t${p.name}\t${p.code}`).join('\n'), '已複製，可貼到 Excel');
+    $('#printCodes').onclick = () => {
+      $('#slips').innerHTML = ppl.map((p) => `<div class="slip">2026 諮詢科小天使票選<br><b>${esc(p.name)}</b>（${p.team}）<div class="c">${p.code}</div>${esc(VOTE_URL.replace(/^https?:\/\//, ''))}</div>`).join('');
+      window.print();
+    };
+    const rb = $('#resultBtn'); if (rb) rb.onclick = showResults;
+    const rv = $('#revealBtn'); if (rv) rv.onclick = startReveal;
+  }
+
+  // ---------- 結果 ----------
+  async function getResults() {
+    const { data, error } = await sb.rpc('vote_admin_results');
+    if (error) { toast(String(error.message).includes('still_open') ? '請先截止投票' : errMsg(error)); return null; }
+    const duty = data.duty, peer = data.peer;
+    const dTop = duty.length && duty[0].votes > 0 ? duty[0].votes : 0;
+    const dutyWin = dTop ? duty.filter((p) => p.votes === dTop) : [];
+    const cut = peer.length ? (peer[Math.min(4, peer.length - 1)].votes) : 0;
+    const peerWin = peer.filter((p) => p.votes >= cut && p.votes > 0);
+    return { ...data, dutyWin, peerWin };
+  }
+
+  async function showResults() {
+    const r = await getResults(); if (!r) return;
+    const list = (arr, wins) => { const ids = new Set(wins.map((p) => p.id)); return `<ol class="ranklist">${arr.map((p, i) => `<li class="${ids.has(p.id) ? 'win' : ''}"><span class="n">${i + 1}</span><span>${esc(p.name)}</span><span class="small muted">${p.team}</span><span class="v">${p.votes} 票</span></li>`).join('')}</ol>`; };
+    $('#resultBox').innerHTML = `<p class="small muted" style="margin-top:14px">投票率 ${r.voted}／${r.total}。黃底是得獎者${r.peerWin.length > 5 ? `；最佳同事第 5 名同票，共 ${r.peerWin.length} 人並列` : ''}${r.dutyWin.length > 1 ? `；最佳 Duty 同票 ${r.dutyWin.length} 人並列` : ''}。</p>
+      <h3 style="margin-top:12px">最佳 Duty</h3>${list(r.duty, r.dutyWin)}
+      <h3 style="margin-top:16px">最佳同事（有得票的人）</h3>${list(r.peer, r.peerWin)}`;
+  }
+
+  // ---------- 揭曉模式 ----------
+  async function startReveal() {
+    unlockAudio();
+    const r = await getResults(); if (!r) return;
+    const peerOrder = r.peerWin.slice().reverse(); // 票數少的先揭曉，壓軸最高票
+    const steps = [
+      { kind: 'title' },
+      { kind: 'duty-q' }, { kind: 'duty-a' },
+      { kind: 'peer-q' },
+      ...peerOrder.map((_, i) => ({ kind: 'peer-a', n: i + 1 })),
+      { kind: 'end' },
+    ];
+    let i = 0;
+    const el = document.createElement('div');
+    el.className = 'stage-reveal'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '揭曉模式');
+    document.body.appendChild(el);
+    try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); } catch (e) {}
+    const HALO = '<svg viewBox="0 0 120 40" width="160" height="54" aria-hidden="true" style="color:var(--gold)"><ellipse cx="60" cy="20" rx="44" ry="11" fill="none" stroke="currentColor" stroke-width="6"/></svg>';
+    const names = (arr, cls = '') => `<div class="winners">${arr.map((p) => `<div class="chip-win ${cls}">${esc(p.name)}<small class="small muted" style="display:block;font-size:16px">${p.team}</small></div>`).join('')}</div>`;
+    function render() {
+      const s = steps[i];
+      let body = '';
+      if (s.kind === 'title') body = `${HALO}<div class="award-name">2026 諮詢科小天使票選</div><div class="winner" style="font-size:clamp(36px,9vw,80px)">揭曉時刻</div><p class="muted">每一份幫助都值得被看見，每一份付出都值得被肯定。</p>`;
+      if (s.kind === 'duty-q') body = `<div class="award-name">最佳 Duty</div><p class="muted">最可靠的神隊友，關鍵時刻總能即時支援</p><div class="mystery">？</div>`;
+      if (s.kind === 'duty-a') body = `<div class="award-name">最佳 Duty</div>${HALO}${r.dutyWin.length ? `<div class="winner">${r.dutyWin.map((p) => esc(p.name)).join('、')}<small>${r.dutyWin.map((p) => p.team).join('、')}</small></div>${r.dutyWin.length > 1 ? `<p class="tie">同票並列</p>` : ''}` : '<p>沒有票</p>'}`;
+      if (s.kind === 'peer-q') body = `<div class="award-name">最佳同事</div><p class="muted">暖心又給力，讓工作更順利、團隊更有溫度</p><div class="mystery">？</div><p class="muted">共 ${r.peerWin.length} 位${r.peerWin.length > 5 ? '（含同票並列）' : ''}</p>`;
+      if (s.kind === 'peer-a') body = `<div class="award-name">最佳同事</div><div class="winners">${peerOrder.slice(0, s.n).map((p, k) => `<div class="chip-win ${k === s.n - 1 ? 'new' : ''}">${esc(p.name)}<small class="small muted" style="display:block;font-size:16px">${p.team}</small></div>`).join('')}</div>${r.peerWin.length > 5 && s.n === peerOrder.length ? `<p class="tie">第 5 名同票，${r.peerWin.length} 位並列</p>` : ''}`;
+      if (s.kind === 'end') body = `${HALO}<div class="award-name">恭喜所有小天使！</div><div class="award-name" style="font-size:22px;margin-top:6px">最佳 Duty</div>${names(r.dutyWin)}<div class="award-name" style="font-size:22px;margin-top:10px">最佳同事</div>${names(r.peerWin)}<p class="muted">諮詢科最強二線，因為有你們而更強大！</p>`;
+      el.innerHTML = `<div class="inner">${body}</div>
+        <div class="controls"><button class="btn ghost small" id="rvPrev" type="button" ${i === 0 ? 'disabled' : ''}>上一步</button>
+          ${i < steps.length - 1 ? `<button class="btn pink" id="rvNext" type="button" style="min-width:160px">${s.kind.endsWith('-q') || s.kind === 'peer-a' ? '揭曉！' : '下一步'}</button>` : ''}
+          <button class="btn ghost small" id="rvExit" type="button">離開</button></div>`;
+      $('#rvPrev').onclick = () => { if (i > 0) { i--; render(); } };
+      const nx = $('#rvNext'); if (nx) { nx.onclick = next; nx.focus(); }
+      $('#rvExit').onclick = exit;
+      if (s.kind === 'duty-a' || s.kind === 'peer-a' || s.kind === 'end') { sfx.fanfare(); burst(); }
+    }
+    function next() { if (i < steps.length - 1) { i++; render(); } }
+    function exit() { el.remove(); document.removeEventListener('keydown', onKey); try { document.fullscreenElement && document.exitFullscreen(); } catch (e) {} }
+    function onKey(e) { if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); next(); } if (e.key === 'ArrowLeft' && i > 0) { i--; render(); } if (e.key === 'Escape') exit(); }
+    document.addEventListener('keydown', onKey);
+    render();
+  }
+
+  // 彩紙：只在揭曉那一刻灑一次
+  function burst() {
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const c = document.createElement('canvas'); c.className = 'burst'; document.body.appendChild(c);
+    const ctx = c.getContext('2d'); const W = c.width = innerWidth, H = c.height = innerHeight;
+    const colors = ['#ec6a8e', '#ffe27a', '#7fbfe9', '#f2b730', '#ffffff'];
+    const ps = Array.from({ length: 110 }, () => ({ x: W / 2 + (Math.random() - .5) * W * .3, y: H * .45, vx: (Math.random() - .5) * 14, vy: -Math.random() * 14 - 4, r: Math.random() * 6 + 4, c: colors[Math.random() * colors.length | 0], a: Math.random() * 6 }));
+    let t = 0;
+    (function frame() {
+      ctx.clearRect(0, 0, W, H);
+      ps.forEach((p) => { p.vy += .35; p.x += p.vx; p.y += p.vy; p.a += .15; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.c; ctx.fillRect(-p.r / 2, -p.r / 4, p.r, p.r / 2); ctx.restore(); });
+      if (++t < 140) requestAnimationFrame(frame); else c.remove();
+    })();
+  }
+
+  (async function boot() {
+    const { data } = await sb.auth.getUser();
+    user = data && data.user;
+    if (!user) return showLogin();
+    load();
+  })();
+})();
+</script>
+</body>
+</html>
