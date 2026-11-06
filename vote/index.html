@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="preload" as="image" href="img/angel-pray.webp">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=2">
+<link rel="stylesheet" href="vote.css?v=3">
 </head>
 <body>
 <main class="wrap" id="app"><p class="muted center" style="margin-top:40px">載入中…</p></main>
@@ -54,7 +54,7 @@
         <div class="ribbon-row">${WING}<span class="ribbon">票選</span><span class="wing r" style="display:inline-flex">${WING}</span></div>
       </header>
       <p class="callout">諮詢科是一個大家庭，<br>我們是<span class="hl">最強的二線</span>！</p>
-      <p class="lead">在忙碌的工作中，總有一些小天使默默付出、<br>在你需要幫忙時伸出援手，<br>讓你忍不住覺得：「有他／她在，真的太好了！」</p>
+      <p class="lead">在忙碌的工作中，總有一些小天使默默付出、<br>在你需要幫忙時伸出援手，<br>讓你忍不住覺得：<br>「有他／她在，真的太好了！」</p>
       <span class="banner">快來投下你神聖的一票！</span>
 
       <div class="awards-title">${STAR(18, 'var(--yellow)')}票選獎項</div>
@@ -72,14 +72,14 @@
       </section>
       <p class="signoff">Together We are Stronger!</p>
       <p class="small muted center" style="margin:4px 0 8px">諮詢科最強二線，因為有你們而更強大！</p>`;
-    const b = $('#startBtn'); if (b) b.onclick = showCode;
+    const b = $('#startBtn'); if (b) b.onclick = () => showCode();
   }
 
   // ---------- 投票碼 ----------
   function showCode(msg) {
     app.innerHTML = `
       <div class="brand" style="margin-top:6px"><div class="logo"><b>小天使票選</b></div><button class="btn ghost small" type="button" id="backBtn">回首頁</button></div>
-      <section class="cloudcard codebox" style="margin-top:56px">
+      <section class="cloudcard codebox" style="margin-top:92px">
         ${IMG('star', 'sticker-in')}
         <div class="step" style="color:var(--ink-soft)">第 1 步／共 2 步</div>
         <h2>輸入你的投票碼</h2>
@@ -91,7 +91,7 @@
           <div class="msg err" id="codeMsg" role="alert">${msg ? esc(msg) : ''}</div>
         </form>
       </section>`;
-    $('#backBtn').onclick = showIntro;
+    $('#backBtn').onclick = () => showIntro();
     const inp = $('#code'); inp.focus();
     inp.addEventListener('input', () => { inp.value = fmt(inp.value); });
     $('#codeForm').onsubmit = async (e) => {
@@ -195,7 +195,7 @@
       </section>
       <p class="signoff">Together We are Stronger!</p>`;
     announce(already ? '這組碼已經投過' : '投票完成');
-    $('#homeBtn').onclick = showIntro;
+    $('#homeBtn').onclick = () => showIntro();
   }
 
   (async function boot() {

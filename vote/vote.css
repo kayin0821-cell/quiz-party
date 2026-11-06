@@ -93,7 +93,7 @@ body {
 /* 主要卡片：白雲感 */
 .cloudcard { position: relative; background: var(--cream); border-radius: 28px 34px 30px 36px; padding: 22px 18px; box-shadow: 0 6px 0 rgba(31, 63, 134, .08); }
 .cloudcard + .cloudcard { margin-top: 16px; }
-.cloudcard .sticker-in { position: absolute; width: 84px; right: -4px; top: -76px; transform: rotate(5deg); }
+.cloudcard .sticker-in { position: absolute; width: 78px; right: 10px; top: -72px; transform: rotate(5deg); }
 .section-head { display: flex; align-items: center; gap: 8px; }
 .section-head .crown { width: 38px; flex: none; }
 .section-head h2 { font-size: 24px; }
