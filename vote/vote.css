@@ -226,3 +226,23 @@ table.codes td.code { font-variant-numeric: tabular-nums; letter-spacing: .1em; 
   .sticker { width: 78px; }
 }
 @media (prefers-reduced-motion: reduce) { .twinkle { animation: none; } }
+
+/* 主持頁：電腦螢幕兩欄 */
+body.admin .wrap { max-width: 1240px; }
+body.admin { background-attachment: fixed; }
+.admin-grid { display: grid; gap: 16px; }
+.admin-grid .card + .card { margin-top: 16px; }
+.codes-wrap { overflow-x: auto; }
+table.codes-full th { text-align: left; font-weight: 400; color: var(--ink-soft); font-size: 14px; padding: 6px; border-bottom: 2px solid var(--line); }
+table.codes-full td { vertical-align: middle; }
+table.codes-full tr.copied td:not(:last-child) { color: var(--ink-soft); }
+table.codes-full tr:hover td { background: rgba(220, 239, 255, .45); }
+.copy-one { min-width: 108px; white-space: nowrap; }
+.tag-voted { background: var(--yellow-soft); border-radius: 999px; padding: 2px 10px; }
+@media (min-width: 980px) {
+  .admin-grid { grid-template-columns: minmax(360px, 420px) 1fr; align-items: start; }
+  .admin-grid .col-right { position: sticky; top: 16px; max-height: calc(100vh - 32px); overflow: auto; border-radius: 28px; }
+}
+.copy-one.pink { background: var(--pink-soft); color: #b8345e; box-shadow: none; border: 2px solid #f6b3c7; }
+.copy-one.pink:hover { background: var(--pink); color: #fff; border-color: var(--pink); }
+.copy-one.ghost { border-color: var(--line); color: var(--ink-soft); }

@@ -10,9 +10,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=7">
+<link rel="stylesheet" href="vote.css?v=8">
 </head>
-<body>
+<body class="admin">
 <main class="wrap" id="app"></main>
 <div id="slips"></div>
 
@@ -70,10 +70,55 @@
     return [...m.entries()];
   }
 
+  // ---------- 投票碼（發給同仁） ----------
+  let codeTeam = '全部', onlyPending = false;
+  const copiedKey = (id) => 'angelvote:copied:' + id;
+  const isCopied = (id) => { try { return localStorage.getItem(copiedKey(id)) === '1'; } catch (e) { return false; } };
+  const markCopied = (id) => { try { localStorage.setItem(copiedKey(id), '1'); } catch (e) {} };
+  const personalMsg = (p) => `您的小天使投票碼為 ${p.code}，投票網頁 ${VOTE_URL}`;
+  function drawCodes() {
+    const box = $('#codesCard'); if (!box) return;
+    const ppl = st.people;
+    const teams = ['全部', ...new Set(ppl.map((p) => p.team))];
+    const list = ppl.filter((p) => (codeTeam === '全部' || p.team === codeTeam) && (!onlyPending || !p.has_voted));
+    const copiedN = list.filter((p) => isCopied(p.id)).length;
+    box.innerHTML = `
+      <div class="row spread"><h2>投票碼（發給同仁）</h2>
+        <div class="row"><button class="btn ghost small" id="copyCodes" type="button">複製全部（貼到 Excel）</button><button class="btn ghost small" id="printCodes" type="button">列印小紙條</button></div></div>
+      <p class="small muted" style="margin:6px 0 12px">按「複製訊息」會複製「您的小天使投票碼為 XXXX，投票網頁 …」，直接貼到 M+ 私訊給本人。複製過的會打勾，方便你記得發到哪裡（只記在這台電腦）。</p>
+      <div class="row spread" style="align-items:center">
+        <div class="tabs" role="group" aria-label="組別" style="padding-bottom:6px">${teams.map((t) => `<button class="tab" type="button" data-ct="${t}" aria-pressed="${t === codeTeam}">${t}</button>`).join('')}</div>
+        <label class="row small" style="gap:6px;cursor:pointer"><input type="checkbox" id="onlyPending" ${onlyPending ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--pink)"> 只看還沒投的</label>
+      </div>
+      <p class="small muted" style="margin:4px 0 8px">顯示 ${list.length} 人・已複製 ${copiedN} 人</p>
+      <div class="codes-wrap"><table class="codes codes-full">
+        <thead><tr><th>組別</th><th>姓名</th><th>投票碼</th><th>狀態</th><th></th></tr></thead>
+        <tbody>${list.map((p) => `<tr class="${isCopied(p.id) ? 'copied' : ''}">
+          <td class="small muted">${esc(p.team)}</td><td>${esc(p.name)}</td><td class="code">${fmtCode(p.code)}</td>
+          <td class="small">${p.has_voted ? '<span class="tag-voted">已投</span>' : '<span class="muted">未投</span>'}</td>
+          <td style="text-align:right"><button class="btn small ${isCopied(p.id) ? 'ghost' : 'pink'} copy-one" type="button" data-copy="${p.id}">${isCopied(p.id) ? '✓ 已複製' : '複製訊息'}</button></td></tr>`).join('') || '<tr><td colspan="5" class="muted">沒有符合的同仁</td></tr>'}
+        </tbody></table></div>
+      <p class="small" style="margin-top:12px"><button class="backlink" id="clearCopied" type="button">清除「已複製」勾選</button></p>`;
+    box.querySelectorAll('[data-ct]').forEach((b) => b.onclick = () => { codeTeam = b.dataset.ct; drawCodes(); });
+    $('#onlyPending').onchange = (e) => { onlyPending = e.target.checked; drawCodes(); };
+    box.querySelectorAll('[data-copy]').forEach((b) => b.onclick = async () => {
+      const p = ppl.find((x) => x.id === +b.dataset.copy);
+      await copy(personalMsg(p), `已複製 ${p.name} 的投票碼訊息`);
+      markCopied(p.id); drawCodes();
+    });
+    $('#clearCopied').onclick = () => { if (!confirm('清除這台電腦上所有「已複製」勾選？')) return; ppl.forEach((p) => { try { localStorage.removeItem(copiedKey(p.id)); } catch (e) {} }); drawCodes(); };
+    $('#copyCodes').onclick = () => copy('組別\t姓名\t投票碼\t訊息\n' + ppl.map((p) => `${p.team}\t${p.name}\t${fmtCode(p.code)}\t${personalMsg(p)}`).join('\n'), '已複製，可貼到 Excel');
+    $('#printCodes').onclick = () => {
+      $('#slips').innerHTML = ppl.map((p) => `<div class="slip">2026 諮詢科小天使票選・11/12（四）23:59 截止<br><b>${esc(p.name)}</b>（${p.team}）<div class="c">${fmtCode(p.code)}</div>${esc(VOTE_URL.replace(/^https?:\/\//, ''))}</div>`).join('');
+      window.print();
+    };
+  }
+
   function draw() {
     const ppl = st.people, voted = ppl.filter((p) => p.has_voted).length, total = ppl.length;
     const pending = ppl.filter((p) => !p.has_voted);
     app.innerHTML = `${topbar()}
+      <div class="admin-grid"><div class="col-left">
       <section class="card">
         <div class="row spread"><h2>${st.is_open ? '投票進行中' : '投票已截止'}</h2>
           <button class="btn small ${st.is_open ? 'ghost' : ''}" id="toggleBtn" type="button">${st.is_open ? '截止投票' : '重新開放投票'}</button></div>
@@ -89,6 +134,12 @@
       </section>
 
       <section class="card">
+        <div class="row spread"><h2>還沒投票（${pending.length}）</h2></div>
+        <p class="small muted" style="margin:4px 0 10px">只看得到誰還沒投，看不到任何人投給誰。</p>
+        ${pending.length ? groups(pending).map(([t, l]) => `<div class="teamblock"><h4>${t}</h4><div class="pending">${l.map((p) => `<span>${esc(p.name)}</span>`).join('')}</div></div>`).join('') : '<p>全員都投完了！</p>'}
+      </section>
+
+      <section class="card">
         <h2>結果</h2>
         ${st.is_open ? `<p class="muted">投票截止後才能看結果，也才能進入揭曉模式。</p>` :
           `<p class="muted small">結果只有主持帳號看得到。聚餐時按「揭曉模式」，用手機或投影一個一個公布。</p>
@@ -99,25 +150,14 @@
       </section>
 
       <section class="card">
-        <div class="row spread"><h2>還沒投票（${pending.length}）</h2></div>
-        <p class="small muted" style="margin:4px 0 10px">只看得到誰還沒投，看不到任何人投給誰。</p>
-        ${pending.length ? groups(pending).map(([t, l]) => `<div class="teamblock"><h4>${t}</h4><div class="pending">${l.map((p) => `<span>${esc(p.name)}</span>`).join('')}</div></div>`).join('') : '<p>全員都投完了！</p>'}
-      </section>
-
-      <section class="card">
         <h2>清空重來</h2>
         <p class="small muted" style="margin:6px 0 10px">「重新開放投票」只是延長投票、保留已投的票。要把所有票和「已投票」紀錄歸零（例如正式開始前清掉試投票），請按下面的按鈕。投票碼不會改變。</p>
         <button class="btn small pink" id="resetBtn" type="button">清空所有票，重新投票</button>
       </section>
 
-      <section class="card">
-        <div class="row spread"><h2>投票碼</h2>
-          <div class="row"><button class="btn ghost small" id="copyCodes" type="button">複製全部（貼到 Excel）</button><button class="btn ghost small" id="printCodes" type="button">列印小紙條</button></div></div>
-        <p class="small muted" style="margin:6px 0 10px">請私下發給本人。同仁忘記碼時，可以在這裡查。</p>
-        <details><summary>展開投票碼名單（${total} 人）</summary>
-          ${groups(ppl).map(([t, l]) => `<div class="teamblock" style="margin-top:12px"><h4>${t}</h4><table class="codes"><tbody>${l.map((p) => `<tr><td>${esc(p.name)}</td><td class="code">${fmtCode(p.code)}</td><td class="small muted">${p.has_voted ? '已投' : ''}</td></tr>`).join('')}</tbody></table></div>`).join('')}
-        </details>
-      </section>`;
+      </div><div class="col-right">
+      <section class="card" id="codesCard"></section>
+      </div></div>`;
     bindTop();
     $('#toggleBtn').onclick = async () => {
       if (!confirm(st.is_open ? '現在就截止投票？截止後同仁就不能再投，你才能看結果。之後還可以重新開放。' : '重新開放投票？已投的票會保留（要歸零請用下方「清空所有票」）。開放期間看不到結果，同仁頁的得獎名單也會收起來。')) return;
@@ -139,11 +179,7 @@
       e.currentTarget.setAttribute('aria-expanded', String(on)); e.currentTarget.textContent = on ? '收起 QR code' : '顯示 QR code';
       if (on && !$('#qr').innerHTML) { try { const q = qrcode(0, 'M'); q.addData(VOTE_URL); q.make(); $('#qr').innerHTML = q.createSvgTag({ scalable: true, margin: 0 }); } catch (err) {} }
     };
-    $('#copyCodes').onclick = () => copy('組別\t姓名\t投票碼\n' + ppl.map((p) => `${p.team}\t${p.name}\t${fmtCode(p.code)}`).join('\n'), '已複製，可貼到 Excel');
-    $('#printCodes').onclick = () => {
-      $('#slips').innerHTML = ppl.map((p) => `<div class="slip">2026 諮詢科小天使票選・11/12（四）23:59 截止<br><b>${esc(p.name)}</b>（${p.team}）<div class="c">${fmtCode(p.code)}</div>${esc(VOTE_URL.replace(/^https?:\/\//, ''))}</div>`).join('');
-      window.print();
-    };
+    drawCodes();
     const rb = $('#resultBtn'); if (rb) rb.onclick = showResults;
     const rv = $('#revealBtn'); if (rv) rv.onclick = startReveal;
     const pb = $('#pubBtn'); if (pb) pb.onclick = async () => {
