@@ -3,15 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#eaf5fd">
+<meta name="theme-color" content="#d4ebfd">
 <title>諮詢科小天使票選</title>
-<meta name="description" content="2026 諮詢科小天使票選：最佳 Duty 1 名、最佳同事 5 名，每人每項一票。">
+<meta name="description" content="2026 諮詢科小天使票選：最佳 Duty 1 名、最佳同事 5 名，每人每項一票，11/14 前截止投票。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cellipse cx=%2250%22 cy=%2250%22 rx=%2240%22 ry=%2216%22 fill=%22none%22 stroke=%22%23f2b730%22 stroke-width=%2210%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
+<link rel="preload" as="image" href="img/angel-pray.webp">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=1">
+<link rel="stylesheet" href="vote.css?v=2">
 </head>
 <body>
 <main class="wrap" id="app"><p class="muted center" style="margin-top:40px">載入中…</p></main>
@@ -22,103 +23,89 @@
 (function () {
   const { sb, $, esc, toast, store, announce } = QP;
   const app = $('#app');
-  const HALO = '<svg class="halo" viewBox="0 0 120 40" aria-hidden="true"><ellipse cx="60" cy="20" rx="44" ry="11" fill="none" stroke="currentColor" stroke-width="6"/></svg>';
-  const HEART = '<svg class="done-mark" viewBox="0 0 120 120" aria-hidden="true"><ellipse cx="60" cy="18" rx="30" ry="8" fill="none" stroke="#f2b730" stroke-width="5"/><path d="M60 104C30 82 16 66 16 48c0-12 9-21 21-21 10 0 17 6 23 14 6-8 13-14 23-14 12 0 21 9 21 21 0 18-14 34-44 56z" fill="currentColor"/></svg>';
   const TEAMS = ['一組', '二組', '三組', '四組', '五組', '六組'];
+  const DEADLINE = '11/14 前截止投票';
 
-  let people = [], isOpen = true;
-  let me = null, code = '';
+  // ---- 手繪風 SVG ----
+  const STAR = (s, c = 'var(--gold)') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l2.6 5.6 6.1.7-4.5 4.2 1.2 6-5.4-3-5.4 3 1.2-6L3.3 9.1l6.1-.7z" fill="${c}" stroke="${c}" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+  const SPARK = (s, c = 'var(--gold)') => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1c.8 5.6 2.4 8.4 11 11-8.6 2.6-10.2 5.4-11 11-.8-5.6-2.4-8.4-11-11 8.6-2.6 10.2-5.4 11-11z" fill="${c}"/></svg>`;
+  const HEART = (s) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20.5C6 16.6 3 13.4 3 9.6 3 7 5 5 7.5 5c1.9 0 3.3 1 4.5 2.6C13.2 6 14.6 5 16.5 5 19 5 21 7 21 9.6c0 3.8-3 7-9 10.9z" fill="none" stroke="var(--pink)" stroke-width="2.2" stroke-linejoin="round"/></svg>`;
+  const CROWN = (n, color) => `<svg class="crown" viewBox="0 0 48 40" aria-hidden="true"><path d="M5 34 3 11l11 9 10-15 10 15 11-9-2 23z" fill="#fff" stroke="var(--gold)" stroke-width="3" stroke-linejoin="round"/><circle cx="3" cy="11" r="3" fill="var(--gold)"/><circle cx="24" cy="5" r="3" fill="var(--gold)"/><circle cx="45" cy="11" r="3" fill="var(--gold)"/><circle cx="24" cy="25" r="8.5" fill="${color}"/><text x="24" y="29.5" text-anchor="middle" font-size="12" fill="#fff" font-family="Huninn, sans-serif">${n}</text></svg>`;
+  const WING = '<svg class="wing" viewBox="0 0 52 34" aria-hidden="true"><path d="M50 18C42 6 26 2 4 6c6 3 10 5 12 8-5 0-9 1-12 3 6 1 10 3 12 6-4 1-6 3-7 5 15 2 30-1 41-10z" fill="#fff" stroke="#4a8fd0" stroke-width="2.4" stroke-linejoin="round"/></svg>';
+  const EYEOFF = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 6.1C11 6 11.5 6 12 6c5 0 8.5 4.5 9.5 6-.5.8-1.6 2.2-3.2 3.6M6.4 7.6C4.5 8.9 3.1 10.6 2.5 12c1 1.5 4.5 6 9.5 6 1.6 0 3-.4 4.3-1.1M9.9 9.9a3 3 0 0 0 4.2 4.2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+  const IMG = (n, cls, alt = '') => `<img class="${cls}" src="img/angel-${n}.webp" alt="${alt}" width="180" height="200" decoding="async">`;
+  const deco = (html, style, tw) => `<span class="deco ${tw ? 'twinkle' : ''}" style="${style}">${html}</span>`;
+
+  let people = [], isOpen = true, code = '';
   let pick = { duty: null, peer: null };
   let peerTeam = '一組', peerQuery = '';
   const byId = (id) => people.find((p) => p.id === id);
-
-  function header(back) {
-    return `<div class="brand"><div class="logo"><b>小天使票選</b></div>${back ? `<button class="backlink" type="button" id="backBtn">← 上一步</button>` : ''}</div>`;
-  }
+  const fmt = (v) => v.replace(/\D/g, '').slice(0, 8).replace(/^(\d{4})(\d)/, '$1 $2');
 
   // ---------- 首頁 ----------
   function showIntro() {
     const done = store.get('angelvote:done');
-    app.innerHTML = `${header()}
-      <section class="card">
-        <div class="hero">${HALO}
-          <span class="year">2026</span>
-          <h1>諮詢科小天使</h1>
-          <span class="ribbon">票選</span>
-        </div>
-        <p class="lead" style="margin-top:16px">諮詢科是一個大家庭，我們是最強的二線！<br>工作中最常幫助你、總在關鍵時刻成為神隊友的夥伴，<br>換我們來給他們一個肯定。</p>
-        <div class="awards">
-          <div class="award duty"><h3>最佳 Duty</h3><span class="quota">1 名</span><p>最可靠的神隊友，關鍵時刻總能即時支援</p></div>
-          <div class="award peer"><h3>最佳同事</h3><span class="quota">5 名</span><p>暖心又給力，讓工作更順利、團隊更有溫度</p></div>
-        </div>
-        <p class="small muted center" style="margin:14px 0 0">每人每個獎項各一票，投票不記名，沒有人看得到你投給誰。<br>結果在聚餐時揭曉。</p>
-        <div style="margin-top:18px">
-          ${isOpen ? `<button class="btn block pink" id="startBtn" type="button">開始投票</button>` : `<div class="msg info center">投票已經截止，謝謝大家！結果在聚餐時揭曉。</div>`}
-        </div>
-        ${done && isOpen ? `<p class="small muted center" style="margin:10px 0 0">這支手機已經投過票了。幫別人投請按「開始投票」。</p>` : ''}
-      </section>`;
-    const b = $('#startBtn'); if (b) b.onclick = showWho;
-  }
+    app.innerHTML = `
+      <header class="hero">
+        ${deco(STAR(22), 'left:8%;top:6px', true)}${deco(SPARK(16), 'right:16%;top:2px', true)}${deco(HEART(20), 'right:6%;top:58px')}${deco(SPARK(12, 'var(--pink)'), 'left:22%;top:66px', true)}
+        ${IMG('pray', 'sticker l')}${IMG('heart', 'sticker r')}
+        <span class="year">2026</span>
+        <h1 class="title-big">諮詢科<br>小天使</h1>
+        <div class="ribbon-row">${WING}<span class="ribbon">票選</span><span class="wing r" style="display:inline-flex">${WING}</span></div>
+      </header>
+      <p class="callout">諮詢科是一個大家庭，<br>我們是<span class="hl">最強的二線</span>！</p>
+      <p class="lead">在忙碌的工作中，總有一些小天使默默付出、<br>在你需要幫忙時伸出援手，<br>讓你忍不住覺得：「有他／她在，真的太好了！」</p>
+      <span class="banner">快來投下你神聖的一票！</span>
 
-  // ---------- 我是誰 ----------
-  let whoTeam = '一組';
-  function showWho() {
-    me = null; code = '';
-    const teams = [...TEAMS, '管理職'];
-    app.innerHTML = `${header(true)}
-      <section class="card">
-        <div class="step">第 1 步／共 2 步</div>
-        <h2 class="title" style="font-size:26px">你是誰？</h2>
-        <p class="muted small" style="margin:4px 0 12px">先選組別，再點你的名字。</p>
-        <div class="tabs" role="group" aria-label="組別">${teams.map((t) => `<button class="tab" type="button" data-team="${t}" aria-pressed="${t === whoTeam}">${t}</button>`).join('')}</div>
-        <div class="names" id="whoNames"></div>
-      </section>`;
-    $('#backBtn').onclick = showIntro;
-    const draw = () => {
-      $('#whoNames').innerHTML = people.filter((p) => p.team === whoTeam).map((p) => `<button class="name" type="button" data-id="${p.id}">${esc(p.name)}</button>`).join('');
-      app.querySelectorAll('#whoNames .name').forEach((b) => b.onclick = () => { me = byId(+b.dataset.id); showCode(); });
-    };
-    app.querySelectorAll('[data-team]').forEach((b) => b.onclick = () => {
-      whoTeam = b.dataset.team;
-      app.querySelectorAll('[data-team]').forEach((x) => x.setAttribute('aria-pressed', String(x.dataset.team === whoTeam)));
-      draw();
-    });
-    draw();
+      <div class="awards-title">${STAR(18, 'var(--yellow)')}票選獎項</div>
+      <div class="awards">
+        <div class="award duty">${CROWN(1, 'var(--gold)')}<h3>最佳 Duty</h3><span class="quota">1 名</span><p>最可靠的神隊友，<br>關鍵時刻總能即時支援！</p></div>
+        <div class="award peer">${CROWN(2, '#4a8fd0')}<h3>最佳同事</h3><span class="quota">5 名</span><p>暖心又給力，<br>讓工作更順利、團隊更有溫度！</p></div>
+      </div>
+
+      <section class="cloudcard" style="margin-top:22px;text-align:center">
+        ${isOpen ? `<p style="margin:0;font-size:22px"><span class="mark">${DEADLINE}</span></p>
+          <p class="lead small" style="margin-top:8px">每人在兩個獎項各有一票。<br>只要輸入投票碼，不用填名字，沒有人看得到你投給誰。</p>
+          <button class="btn block pink" id="startBtn" type="button" style="margin-top:16px;min-height:58px;font-size:21px">開始投票</button>
+          ${done ? `<p class="small muted" style="margin:10px 0 0">這支手機已經投過票了。要幫別人投，請按「開始投票」。</p>` : ''}`
+        : `${IMG('pray', 'done-art')}<p style="font-size:22px;margin:0">投票已經截止，謝謝大家！</p>`}
+      </section>
+      <p class="signoff">Together We are Stronger!</p>
+      <p class="small muted center" style="margin:4px 0 8px">諮詢科最強二線，因為有你們而更強大！</p>`;
+    const b = $('#startBtn'); if (b) b.onclick = showCode;
   }
 
   // ---------- 投票碼 ----------
   function showCode(msg) {
-    app.innerHTML = `${header(true)}
-      <section class="card">
-        <div class="step">第 1 步／共 2 步</div>
-        <h2 class="title" style="font-size:26px">嗨，${esc(me.name)}</h2>
+    app.innerHTML = `
+      <div class="brand" style="margin-top:6px"><div class="logo"><b>小天使票選</b></div><button class="btn ghost small" type="button" id="backBtn">回首頁</button></div>
+      <section class="cloudcard codebox" style="margin-top:56px">
+        ${IMG('star', 'sticker-in')}
+        <div class="step" style="color:var(--ink-soft)">第 1 步／共 2 步</div>
+        <h2>輸入你的投票碼</h2>
         <form id="codeForm" autocomplete="off">
-          <label class="field" for="code">輸入你的 6 位數投票碼</label>
-          <input class="text pin" id="code" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" enterkeyhint="go" required>
-          <p class="small muted" style="margin:8px 0 0">投票碼由你的主管私下提供。投票碼只用來確認是你本人、避免重複投票，不會跟你的選擇綁在一起。</p>
-          <div style="margin-top:16px"><button class="btn block pink" id="codeBtn" type="submit">下一步</button></div>
-          <div class="msg err" id="codeMsg">${msg ? esc(msg) : ''}</div>
+          <label class="sr-only" for="code">8 位數投票碼</label>
+          <input class="code8" id="code" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="go" placeholder="0000 0000" required>
+          <div class="privacy">${EYEOFF}<span>投票碼由主管私下發給你。系統只記得「這組碼用過了」，選票上不會記錄是誰投的，連主辦人也看不到。</span></div>
+          <button class="btn block pink" id="codeBtn" type="submit" style="margin-top:16px;min-height:56px;font-size:20px">下一步</button>
+          <div class="msg err" id="codeMsg" role="alert">${msg ? esc(msg) : ''}</div>
         </form>
-        <p class="small center" style="margin:12px 0 0"><button class="backlink" type="button" id="notMe">不是 ${esc(me.name)}？重新選名字</button></p>
       </section>`;
-    $('#backBtn').onclick = showWho; $('#notMe').onclick = showWho;
+    $('#backBtn').onclick = showIntro;
     const inp = $('#code'); inp.focus();
-    inp.addEventListener('input', () => { inp.value = inp.value.replace(/\D/g, '').slice(0, 6); });
+    inp.addEventListener('input', () => { inp.value = fmt(inp.value); });
     $('#codeForm').onsubmit = async (e) => {
       e.preventDefault();
+      const v = inp.value.replace(/\D/g, '');
+      if (v.length !== 8) return ($('#codeMsg').textContent = '投票碼是 8 位數字，請再確認一次。');
       const btn = $('#codeBtn'); btn.disabled = true; btn.textContent = '確認中…';
-      const { data, error } = await sb.rpc('vote_check', { p_person: me.id, p_code: inp.value });
+      const { data, error } = await sb.rpc('vote_check', { p_code: v });
       btn.disabled = false; btn.textContent = '下一步';
       if (error) return ($('#codeMsg').textContent = '網路不穩，請確認連線後再試一次。');
-      const M = {
-        bad_code: '投票碼不對，請再確認一次。',
-        locked: '輸入錯誤太多次，已暫時鎖定。請找主管協助解鎖。',
-        closed: '投票已經截止了。',
-        no_person: '找不到這個名字，請重新選擇。',
-      };
       if (data === 'already') return showDone(true);
+      const M = { bad_code: '找不到這組投票碼，請再確認一次。', closed: '投票已經截止了。', busy: '目前嘗試次數太多，請過幾分鐘再試。' };
       if (data !== 'ok') return ($('#codeMsg').textContent = M[data] || '發生錯誤，請再試一次。');
-      code = inp.value; pick = { duty: null, peer: null }; peerTeam = me.is_manager ? '一組' : me.team; peerQuery = '';
+      code = v; pick = { duty: null, peer: null }; peerQuery = '';
       showBallot();
     };
   }
@@ -126,26 +113,23 @@
   // ---------- 選票 ----------
   function showBallot() {
     const duties = people.filter((p) => p.is_duty);
-    app.innerHTML = `${header(true)}
-      <div class="step" style="margin:0 4px 6px">第 2 步／共 2 步・${esc(me.name)} 的選票</div>
-      <section class="card">
-        <h2 style="font-size:22px">最佳 Duty <span class="small muted">選 1 位</span></h2>
-        <p class="small muted" style="margin:4px 0 12px">最可靠的神隊友，關鍵時刻總能即時支援</p>
-        <div class="names" role="group" aria-label="最佳 Duty 候選人">${duties.map((p) => `<button class="name" type="button" data-cat="duty" data-id="${p.id}" aria-pressed="${pick.duty === p.id}">${esc(p.name)}<small>${p.team}</small></button>`).join('')}</div>
+    app.innerHTML = `
+      <div class="brand" style="margin-top:6px"><div class="logo"><b>你的選票</b>　<span class="small">第 2 步／共 2 步</span></div><button class="btn ghost small" type="button" id="backBtn">上一步</button></div>
+      <section class="cloudcard">
+        <div class="section-head">${CROWN(1, 'var(--gold)')}<h2>最佳 Duty</h2><span class="pill">選 1 位</span></div>
+        <p class="sub">最可靠的神隊友，關鍵時刻總能即時支援！</p>
+        <div class="names" role="group" aria-label="最佳 Duty 候選人">${duties.map((p) => `<button class="name" type="button" data-cat="duty" data-id="${p.id}" aria-pressed="false">${esc(p.name)}<small>${p.team}</small></button>`).join('')}</div>
       </section>
-      <section class="card">
-        <h2 style="font-size:22px">最佳同事 <span class="small muted">選 1 位</span></h2>
-        <p class="small muted" style="margin:4px 0 12px">暖心又給力，讓工作更順利、團隊更有溫度</p>
-        <input class="text search" id="q" type="search" placeholder="搜尋名字" value="${esc(peerQuery)}" aria-label="搜尋名字" enterkeyhint="search">
-        <div class="tabs" role="group" aria-label="組別" id="peerTabs">${TEAMS.map((t) => `<button class="tab" type="button" data-pt="${t}" aria-pressed="${!peerQuery && t === peerTeam}">${t}</button>`).join('')}</div>
+      <section class="cloudcard">
+        <div class="section-head">${CROWN(2, '#4a8fd0')}<h2>最佳同事</h2><span class="pill">選 1 位</span></div>
+        <p class="sub">暖心又給力，讓工作更順利、團隊更有溫度！</p>
+        <input class="text search" id="q" type="search" placeholder="搜尋名字" aria-label="搜尋名字" enterkeyhint="search">
+        <div class="tabs" role="group" aria-label="組別">${TEAMS.map((t) => `<button class="tab" type="button" data-pt="${t}" aria-pressed="${t === peerTeam}">${t}</button>`).join('')}</div>
         <div class="names" id="peerNames" role="group" aria-label="最佳同事候選人"></div>
       </section>
       <div class="ballotbar">
-        <div class="picks">
-          <div class="pick">Duty<b id="pd"></b></div>
-          <div class="pick">同事<b id="pp"></b></div>
-        </div>
-        <button class="btn block pink" id="submitBtn" type="button">確認送出</button>
+        <div class="picks"><div class="pick">最佳 Duty<b id="pd"></b></div><div class="pick">最佳同事<b id="pp"></b></div></div>
+        <button class="btn block pink" id="submitBtn" type="button" style="min-height:54px;font-size:19px">確認送出</button>
       </div>`;
     $('#backBtn').onclick = () => showCode();
     app.querySelectorAll('[data-cat="duty"]').forEach((b) => b.onclick = () => { pick.duty = +b.dataset.id; refresh(); });
@@ -161,8 +145,8 @@
     function refresh() {
       app.querySelectorAll('[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(pick[b.dataset.cat] === +b.dataset.id)));
       const pd = $('#pd'), pp = $('#pp');
-      pd.textContent = pick.duty ? byId(pick.duty).name : '尚未選擇'; pd.classList.toggle('empty', !pick.duty);
-      pp.textContent = pick.peer ? byId(pick.peer).name : '尚未選擇'; pp.classList.toggle('empty', !pick.peer);
+      pd.textContent = pick.duty ? byId(pick.duty).name : '還沒選'; pd.classList.toggle('empty', !pick.duty);
+      pp.textContent = pick.peer ? byId(pick.peer).name : '還沒選'; pp.classList.toggle('empty', !pick.peer);
     }
     $('#submitBtn').onclick = () => {
       if (!pick.duty || !pick.peer) return toast(!pick.duty ? '還沒選最佳 Duty' : '還沒選最佳同事');
@@ -175,12 +159,13 @@
     const back = document.createElement('div');
     back.className = 'sheet-back';
     back.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
-        <h2 id="cfTitle" style="font-size:24px">確認你的神聖一票</h2>
+        ${IMG('heart', 'sticker-in')}
+        <h2 id="cfTitle" style="font-size:24px">確認你神聖的一票</h2>
         <div class="confirm-row"><span>最佳 Duty</span><b>${esc(byId(pick.duty).name)}</b></div>
         <div class="confirm-row"><span>最佳同事</span><b>${esc(byId(pick.peer).name)}</b></div>
         <p class="small muted">送出後就不能修改了。</p>
         <div class="row" style="margin-top:8px"><button class="btn ghost" id="cfNo" type="button" style="flex:1">再想想</button><button class="btn pink" id="cfYes" type="button" style="flex:2">送出投票</button></div>
-        <div class="msg err" id="cfMsg"></div>
+        <div class="msg err" id="cfMsg" role="alert"></div>
       </div>`;
     document.body.appendChild(back);
     const close = () => back.remove();
@@ -188,32 +173,34 @@
     $('#cfNo').onclick = close; $('#cfYes').focus();
     $('#cfYes').onclick = async () => {
       const b = $('#cfYes'); b.disabled = true; b.textContent = '送出中…';
-      const { data, error } = await sb.rpc('vote_cast', { p_person: me.id, p_code: code, p_duty: pick.duty, p_peer: pick.peer });
+      const { data, error } = await sb.rpc('vote_cast', { p_code: code, p_duty: pick.duty, p_peer: pick.peer });
       if (error) { b.disabled = false; b.textContent = '送出投票'; $('#cfMsg').textContent = '網路不穩，請確認連線後再按一次。'; return; }
       if (data === 'ok') { close(); store.set('angelvote:done', true); return showDone(false); }
       if (data === 'already') { close(); return showDone(true); }
       b.disabled = false; b.textContent = '送出投票';
-      $('#cfMsg').textContent = { closed: '投票已經截止了。', locked: '帳號已鎖定，請找主管協助。' }[data] || '發生錯誤，請重新整理後再試一次。';
+      $('#cfMsg').textContent = { closed: '投票已經截止了。', busy: '目前嘗試次數太多，請過幾分鐘再試。' }[data] || '發生錯誤，請重新整理後再試一次。';
     };
   }
 
   function showDone(already) {
     code = '';
-    app.innerHTML = `${header()}
-      <section class="card center">
-        ${HEART}
-        <h2 class="title">${already ? '你已經投過票囉' : '投票完成！'}</h2>
-        <p class="lead">${already ? '每人每個獎項只有一票，謝謝你的參與。' : '謝謝你的神聖一票。<br>每一份幫助都值得被看見，每一份付出都值得被肯定。'}</p>
-        <p class="small muted">結果將在聚餐時揭曉，敬請期待！</p>
-        <p style="margin-top:16px"><button class="btn ghost" id="homeBtn" type="button">回首頁</button></p>
-      </section>`;
-    announce(already ? '你已經投過票' : '投票完成');
+    app.innerHTML = `
+      <section class="cloudcard center" style="margin-top:40px">
+        ${deco(STAR(20), 'left:18px;top:20px', true)}${deco(SPARK(16), 'right:22px;top:26px', true)}${deco(HEART(20), 'right:34px;bottom:70px')}
+        ${IMG('heart', 'done-art')}
+        <h2 class="title" style="font-size:30px">${already ? '這組碼已經投過囉' : '投票完成！'}</h2>
+        <p class="lead">${already ? '每人每個獎項只有一票，謝謝你的參與。' : '謝謝你神聖的一票。<br>每一份幫助都值得被看見，<br>每一份付出都值得被肯定。'}</p>
+        <p style="margin-top:14px"><span class="mark">${DEADLINE}</span></p>
+        <p style="margin-top:18px"><button class="btn ghost" id="homeBtn" type="button">回首頁</button></p>
+      </section>
+      <p class="signoff">Together We are Stronger!</p>`;
+    announce(already ? '這組碼已經投過' : '投票完成');
     $('#homeBtn').onclick = showIntro;
   }
 
   (async function boot() {
     const { data, error } = await sb.rpc('vote_roster');
-    if (error || !data) { app.innerHTML = `${header()}<div class="msg err">連不上投票系統，請確認網路後重新整理。</div>`; return; }
+    if (error || !data) { app.innerHTML = `<div class="msg err" style="margin-top:40px">連不上投票系統，請確認網路後重新整理。</div>`; return; }
     people = data; isOpen = data.length ? data[0].is_open : false;
     showIntro();
   })();

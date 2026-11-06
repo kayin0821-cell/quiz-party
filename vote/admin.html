@@ -8,9 +8,9 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cellipse cx=%2250%22 cy=%2250%22 rx=%2240%22 ry=%2216%22 fill=%22none%22 stroke=%22%23f2b730%22 stroke-width=%2210%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=1">
+<link rel="stylesheet" href="vote.css?v=2">
 </head>
 <body>
 <main class="wrap" id="app"></main>
@@ -61,6 +61,7 @@
     st = data; draw();
   }
 
+  const fmtCode = (c) => String(c).replace(/^(\d{4})(\d{4})$/, '$1 $2');
   function groups(list) {
     const m = new Map();
     list.forEach((p) => { if (!m.has(p.team)) m.set(p.team, []); m.get(p.team).push(p); });
@@ -94,8 +95,8 @@
 
       <section class="card">
         <div class="row spread"><h2>還沒投票（${pending.length}）</h2></div>
-        <p class="small muted" style="margin:4px 0 10px">只看得到誰還沒投，看不到任何人投給誰。粉紅色是輸錯碼太多次被鎖住的人，點一下解鎖。</p>
-        ${pending.length ? groups(pending).map(([t, l]) => `<div class="teamblock"><h4>${t}</h4><div class="pending">${l.map((p) => p.locked ? `<span class="locked"><button class="backlink" style="min-height:0;padding:0;color:inherit" data-unlock="${p.id}" type="button">${esc(p.name)}（已鎖定・點此解鎖）</button></span>` : `<span>${esc(p.name)}</span>`).join('')}</div></div>`).join('') : '<p>全員都投完了！</p>'}
+        <p class="small muted" style="margin:4px 0 10px">只看得到誰還沒投，看不到任何人投給誰。</p>
+        ${pending.length ? groups(pending).map(([t, l]) => `<div class="teamblock"><h4>${t}</h4><div class="pending">${l.map((p) => `<span>${esc(p.name)}</span>`).join('')}</div></div>`).join('') : '<p>全員都投完了！</p>'}
       </section>
 
       <section class="card">
@@ -103,7 +104,7 @@
           <div class="row"><button class="btn ghost small" id="copyCodes" type="button">複製全部（貼到 Excel）</button><button class="btn ghost small" id="printCodes" type="button">列印小紙條</button></div></div>
         <p class="small muted" style="margin:6px 0 10px">請私下發給本人。同仁忘記碼時，可以在這裡查。</p>
         <details><summary>展開投票碼名單（${total} 人）</summary>
-          ${groups(ppl).map(([t, l]) => `<div class="teamblock" style="margin-top:12px"><h4>${t}</h4><table class="codes"><tbody>${l.map((p) => `<tr><td>${esc(p.name)}</td><td class="code">${p.code}</td><td class="small muted">${p.has_voted ? '已投' : ''}</td></tr>`).join('')}</tbody></table></div>`).join('')}
+          ${groups(ppl).map(([t, l]) => `<div class="teamblock" style="margin-top:12px"><h4>${t}</h4><table class="codes"><tbody>${l.map((p) => `<tr><td>${esc(p.name)}</td><td class="code">${fmtCode(p.code)}</td><td class="small muted">${p.has_voted ? '已投' : ''}</td></tr>`).join('')}</tbody></table></div>`).join('')}
         </details>
       </section>`;
     bindTop();
@@ -114,20 +115,15 @@
       load();
     };
     $('#reloadBtn').onclick = load;
-    $('#inviteBtn').onclick = () => copy(`【2026 諮詢科小天使票選】開始囉！\n最佳 Duty 1 名、最佳同事 5 名，每人每項一票，不記名。\n手機打開 ${VOTE_URL}\n選你的名字、輸入主管私下給你的 6 位數投票碼就能投票。\n快來投下你神聖的一票！`, '已複製投票邀請');
+    $('#inviteBtn').onclick = () => copy(`【2026 諮詢科小天使票選】開始囉！\n最佳 Duty 1 名、最佳同事 5 名，每人每項一票，不記名。\n手機打開 ${VOTE_URL}\n輸入主管私下給你的 8 位數投票碼就能投票，不用填名字。\n11/14 前截止投票，快來投下你神聖的一票！`, '已複製投票邀請');
     $('#qrBtn').onclick = (e) => {
       const box = $('#qrBox'); const on = box.classList.toggle('hidden') === false;
       e.currentTarget.setAttribute('aria-expanded', String(on)); e.currentTarget.textContent = on ? '收起 QR code' : '顯示 QR code';
       if (on && !$('#qr').innerHTML) { try { const q = qrcode(0, 'M'); q.addData(VOTE_URL); q.make(); $('#qr').innerHTML = q.createSvgTag({ scalable: true, margin: 0 }); } catch (err) {} }
     };
-    app.querySelectorAll('[data-unlock]').forEach((b) => b.onclick = async () => {
-      const { error } = await sb.rpc('vote_admin_unlock', { p_person: +b.dataset.unlock });
-      if (error) return toast(errMsg(error));
-      toast('已解鎖'); load();
-    });
-    $('#copyCodes').onclick = () => copy('組別\t姓名\t投票碼\n' + ppl.map((p) => `${p.team}\t${p.name}\t${p.code}`).join('\n'), '已複製，可貼到 Excel');
+    $('#copyCodes').onclick = () => copy('組別\t姓名\t投票碼\n' + ppl.map((p) => `${p.team}\t${p.name}\t${fmtCode(p.code)}`).join('\n'), '已複製，可貼到 Excel');
     $('#printCodes').onclick = () => {
-      $('#slips').innerHTML = ppl.map((p) => `<div class="slip">2026 諮詢科小天使票選<br><b>${esc(p.name)}</b>（${p.team}）<div class="c">${p.code}</div>${esc(VOTE_URL.replace(/^https?:\/\//, ''))}</div>`).join('');
+      $('#slips').innerHTML = ppl.map((p) => `<div class="slip">2026 諮詢科小天使票選・11/14 前截止<br><b>${esc(p.name)}</b>（${p.team}）<div class="c">${fmtCode(p.code)}</div>${esc(VOTE_URL.replace(/^https?:\/\//, ''))}</div>`).join('');
       window.print();
     };
     const rb = $('#resultBtn'); if (rb) rb.onclick = showResults;
@@ -171,15 +167,16 @@
     el.className = 'stage-reveal'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '揭曉模式');
     document.body.appendChild(el);
     try { document.documentElement.requestFullscreen && document.documentElement.requestFullscreen(); } catch (e) {}
-    const HALO = '<svg viewBox="0 0 120 40" width="160" height="54" aria-hidden="true" style="color:var(--gold)"><ellipse cx="60" cy="20" rx="44" ry="11" fill="none" stroke="currentColor" stroke-width="6"/></svg>';
+    const HALO = '<img src="img/angel-heart.webp" alt="" width="150" style="width:clamp(110px,18vw,170px);height:auto">';
+    const ASK = '<img class="mystery" src="img/angel-pray.webp" alt="">';
     const names = (arr, cls = '') => `<div class="winners">${arr.map((p) => `<div class="chip-win ${cls}">${esc(p.name)}<small class="small muted" style="display:block;font-size:16px">${p.team}</small></div>`).join('')}</div>`;
     function render() {
       const s = steps[i];
       let body = '';
       if (s.kind === 'title') body = `${HALO}<div class="award-name">2026 諮詢科小天使票選</div><div class="winner" style="font-size:clamp(36px,9vw,80px)">揭曉時刻</div><p class="muted">每一份幫助都值得被看見，每一份付出都值得被肯定。</p>`;
-      if (s.kind === 'duty-q') body = `<div class="award-name">最佳 Duty</div><p class="muted">最可靠的神隊友，關鍵時刻總能即時支援</p><div class="mystery">？</div>`;
+      if (s.kind === 'duty-q') body = `<div class="award-name">最佳 Duty</div><p class="muted">最可靠的神隊友，關鍵時刻總能即時支援</p>${ASK}`;
       if (s.kind === 'duty-a') body = `<div class="award-name">最佳 Duty</div>${HALO}${r.dutyWin.length ? `<div class="winner">${r.dutyWin.map((p) => esc(p.name)).join('、')}<small>${r.dutyWin.map((p) => p.team).join('、')}</small></div>${r.dutyWin.length > 1 ? `<p class="tie">同票並列</p>` : ''}` : '<p>沒有票</p>'}`;
-      if (s.kind === 'peer-q') body = `<div class="award-name">最佳同事</div><p class="muted">暖心又給力，讓工作更順利、團隊更有溫度</p><div class="mystery">？</div><p class="muted">共 ${r.peerWin.length} 位${r.peerWin.length > 5 ? '（含同票並列）' : ''}</p>`;
+      if (s.kind === 'peer-q') body = `<div class="award-name">最佳同事</div><p class="muted">暖心又給力，讓工作更順利、團隊更有溫度</p>${ASK}<p class="muted">共 ${r.peerWin.length} 位${r.peerWin.length > 5 ? '（含同票並列）' : ''}</p>`;
       if (s.kind === 'peer-a') body = `<div class="award-name">最佳同事</div><div class="winners">${peerOrder.slice(0, s.n).map((p, k) => `<div class="chip-win ${k === s.n - 1 ? 'new' : ''}">${esc(p.name)}<small class="small muted" style="display:block;font-size:16px">${p.team}</small></div>`).join('')}</div>${r.peerWin.length > 5 && s.n === peerOrder.length ? `<p class="tie">第 5 名同票，${r.peerWin.length} 位並列</p>` : ''}`;
       if (s.kind === 'end') body = `${HALO}<div class="award-name">恭喜所有小天使！</div><div class="award-name" style="font-size:22px;margin-top:6px">最佳 Duty</div>${names(r.dutyWin)}<div class="award-name" style="font-size:22px;margin-top:10px">最佳同事</div>${names(r.peerWin)}<p class="muted">諮詢科最強二線，因為有你們而更強大！</p>`;
       el.innerHTML = `<div class="inner">${body}</div>
