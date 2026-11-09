@@ -91,7 +91,6 @@
           <label class="sr-only" for="code">員工編號（CSC 後面 5 碼）</label>
           <div class="empid"><span class="csc" aria-hidden="true">CSC</span><input id="code" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="00000" maxlength="8" required></div>
           <p class="small muted" style="margin:8px 0 0">輸入 CSC 後面的 5 碼，英文字母大小寫都可以。</p>
-          <div class="privacy">${EYEOFF}<span>這是<b>記名投票</b>：主辦人看得到你投給誰和你的留言。留言之後會轉交給得獎的小天使。</span></div>
           <button class="btn block pink" id="codeBtn" type="submit" style="margin-top:16px;min-height:56px;font-size:20px">下一步</button>
           <div class="msg err" id="codeMsg" role="alert">${err ? esc(err) : ''}</div>
         </form>
