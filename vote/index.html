@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#d4ebfd">
 <title>諮詢科小天使票選</title>
-<meta name="description" content="2026 諮詢科小天使票選：最佳 Duty 1 名、最佳同事 5 名，每人每項一票，11/12（四）23:59 截止投票。">
+<meta name="description" content="2026 諮詢科小天使票選：最佳 Duty 1 名、最佳同事 5 名，每人每項一票，可以留言給他們，11/12（四）23:59 截止投票。">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Cellipse cx=%2250%22 cy=%2250%22 rx=%2240%22 ry=%2216%22 fill=%22none%22 stroke=%22%23f2b730%22 stroke-width=%2210%22/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="preload" as="image" href="img/angel-pray.webp">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=8">
+<link rel="stylesheet" href="vote.css?v=9">
 </head>
 <body>
 <main class="wrap" id="app"><p class="muted center" style="margin-top:40px">載入中…</p></main>
@@ -37,17 +37,17 @@
   const IMG = (n, cls, alt = '') => `<img class="${cls}" src="img/angel-${n}.webp" alt="${alt}" width="180" height="200" decoding="async">`;
   const deco = (html, style, tw) => `<span class="deco ${tw ? 'twinkle' : ''}" style="${style}">${html}</span>`;
 
-  let people = [], isOpen = true, code = '';
-  let pick = { duty: null, peer: null };
+  let people = [], isOpen = true, code = '', me = null, hadEntry = false;
+  let pick = { duty: null, peer: null }, msg = { duty: '', peer: '' };
   let peerTeam = '一組', peerQuery = '';
   const byId = (id) => people.find((p) => p.id === id);
-  const fmt = (v) => v.replace(/\D/g, '').slice(0, 4);
+  const fmt = (v) => v.toUpperCase().replace(/[^A-Z0-9]/g, '').replace(/^CSC/, '').slice(0, 5);
+  const MAXMSG = 200;
 
   // ---------- 首頁 ----------
   function showIntro() {
     if (published) return showWinners();
     view = 'intro';
-    const done = store.get('angelvote:done');
     app.innerHTML = `
       <header class="hero">
         ${deco(STAR(22), 'left:8%;top:6px', true)}${deco(SPARK(16), 'right:16%;top:2px', true)}${deco(HEART(20), 'right:6%;top:58px')}${deco(SPARK(12, 'var(--pink)'), 'left:22%;top:66px', true)}
@@ -68,9 +68,9 @@
 
       <section class="cloudcard" style="margin-top:22px;text-align:center">
         ${isOpen ? `<p style="margin:0;font-size:22px"><span class="mark">${DEADLINE}</span></p>
-          <p class="lead small" style="margin-top:8px">每人在兩個獎項各有一票。<br>只要輸入投票碼，不用填名字，沒有人看得到你投給誰。</p>
+          <p class="lead small" style="margin-top:8px">每人在兩個獎項各有一票，還可以寫下想對他說的話。<br>輸入員工編號就能投票，截止前都可以回來修改。</p>
           <button class="btn block pink" id="startBtn" type="button" style="margin-top:16px;min-height:58px;font-size:21px">開始投票</button>
-          ${done ? `<p class="small muted" style="margin:10px 0 0">這支手機已經投過票了。要幫別人投，請按「開始投票」。</p>` : ''}`
+`
         : `${IMG('pray', 'done-art')}<p style="font-size:22px;margin:0">投票已經截止，謝謝大家！</p>`}
       </section>
       <p class="signoff">Together We are Stronger!</p>
@@ -78,21 +78,22 @@
     const b = $('#startBtn'); if (b) b.onclick = () => showCode();
   }
 
-  // ---------- 投票碼 ----------
-  function showCode(msg) {
+  // ---------- 員工編號 ----------
+  function showCode(err) {
     view = 'code';
     app.innerHTML = `
       <div class="brand" style="margin-top:6px"><div class="logo"><b>小天使票選</b></div><button class="btn ghost small" type="button" id="backBtn">回首頁</button></div>
       <section class="cloudcard codebox" style="margin-top:92px">
         ${IMG('star', 'sticker-in')}
         <div class="step" style="color:var(--ink-soft)">第 1 步／共 2 步</div>
-        <h2>輸入你的投票碼</h2>
+        <h2>輸入你的員工編號</h2>
         <form id="codeForm" autocomplete="off">
-          <label class="sr-only" for="code">4 位數投票碼</label>
-          <input class="code8" id="code" inputmode="numeric" autocomplete="one-time-code" enterkeyhint="go" placeholder="0000" maxlength="4" required>
-          <div class="privacy">${EYEOFF}<span>投票碼由主管私下發給你。系統只記得「這組碼用過了」，選票上不會記錄是誰投的，連主辦人也看不到。</span></div>
+          <label class="sr-only" for="code">員工編號（CSC 後面 5 碼）</label>
+          <div class="empid"><span class="csc" aria-hidden="true">CSC</span><input id="code" inputmode="text" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go" placeholder="00000" maxlength="8" required></div>
+          <p class="small muted" style="margin:8px 0 0">輸入 CSC 後面的 5 碼，英文字母大小寫都可以。</p>
+          <div class="privacy">${EYEOFF}<span>這是<b>記名投票</b>：主辦人看得到你投給誰和你的留言。留言之後會轉交給得獎的小天使。</span></div>
           <button class="btn block pink" id="codeBtn" type="submit" style="margin-top:16px;min-height:56px;font-size:20px">下一步</button>
-          <div class="msg err" id="codeMsg" role="alert">${msg ? esc(msg) : ''}</div>
+          <div class="msg err" id="codeMsg" role="alert">${err ? esc(err) : ''}</div>
         </form>
       </section>`;
     $('#backBtn').onclick = () => showIntro();
@@ -100,30 +101,43 @@
     inp.addEventListener('input', () => { inp.value = fmt(inp.value); $('#codeMsg').textContent = ''; });
     $('#codeForm').onsubmit = async (e) => {
       e.preventDefault();
-      const v = inp.value.replace(/\D/g, '');
-      if (v.length !== 4) return ($('#codeMsg').textContent = '投票碼是 4 位數字，請再確認一次。');
+      const v = fmt(inp.value);
+      if (!/^[A-Z0-9]{5}$/.test(v)) return ($('#codeMsg').textContent = '請輸入 CSC 後面的 5 碼。');
       const btn = $('#codeBtn'); btn.disabled = true; btn.textContent = '確認中…';
-      const { data, error } = await sb.rpc('vote_check', { p_code: v });
+      const { data, error } = await sb.rpc('vote_login', { p_code: v });
       btn.disabled = false; btn.textContent = '下一步';
-      if (error) return ($('#codeMsg').textContent = '網路不穩，請確認連線後再試一次。');
-      if (data === 'already') return showDone(true);
-      const M = { bad_code: '找不到這組投票碼，請再確認一次。', closed: '投票已經截止了。', busy: '輸錯太多次了，請過 10 分鐘再試，或找主管確認你的投票碼。' };
-      if (data !== 'ok') return ($('#codeMsg').textContent = M[data] || '發生錯誤，請再試一次。');
-      code = v; pick = { duty: null, peer: null }; peerQuery = '';
+      if (error || !data) return ($('#codeMsg').textContent = '網路不穩，請確認連線後再試一次。');
+      const M = { bad_code: '找不到這個員工編號，請再確認一次。', closed: '投票已經截止了。', busy: '輸錯太多次了，請過 10 分鐘再試，或找主管協助。' };
+      if (data.status !== 'ok') return ($('#codeMsg').textContent = M[data.status] || '發生錯誤，請再試一次。');
+      code = v; me = { name: data.name, team: data.team };
+      const en = data.entry; hadEntry = !!en;
+      pick = { duty: en ? en.duty : null, peer: en ? en.peer : null };
+      msg = { duty: (en && en.duty_msg) || '', peer: (en && en.peer_msg) || '' };
+      peerQuery = '';
+      const pp = pick.peer && byId(pick.peer); peerTeam = pp ? pp.team : (me.team !== '管理職' ? me.team : '一組');
       showBallot();
     };
   }
 
   // ---------- 選票 ----------
+  function msgBox(cat) {
+    return `<div class="msgbox" data-msgbox="${cat}" hidden>
+        <label class="msg-label" for="msg-${cat}"><span data-msgto="${cat}"></span><span class="small muted">（選填）</span></label>
+        <textarea id="msg-${cat}" data-msg="${cat}" maxlength="${MAXMSG}" rows="3" placeholder="例如：謝謝你每次都在關鍵時刻幫我！"></textarea>
+        <div class="msg-count small muted"><span data-count="${cat}">0</span>／${MAXMSG}</div>
+      </div>`;
+  }
   function showBallot() {
     view = 'ballot';
     const duties = people.filter((p) => p.is_duty);
     app.innerHTML = `
-      <div class="brand" style="margin-top:6px"><div class="logo"><b>你的選票</b>　<span class="small">第 2 步／共 2 步</span></div><button class="btn ghost small" type="button" id="backBtn">上一步</button></div>
+      <div class="brand" style="margin-top:6px"><div class="logo"><b>嗨，${esc(me.name)}！</b>　<span class="small">第 2 步／共 2 步</span></div><button class="btn ghost small" type="button" id="backBtn">上一步</button></div>
+      ${hadEntry ? `<div class="msg info" style="margin:0 0 14px">你已經投過了，下面是你上次的選擇和留言。可以修改後重新送出，截止前都能改。</div>` : ''}
       <section class="cloudcard">
         <div class="section-head">${CROWN(1, 'var(--gold)')}<h2>最佳 Duty</h2><span class="pill">選 1 位</span></div>
         <p class="sub">最可靠的神隊友，關鍵時刻總能即時支援！</p>
         <div class="names" role="group" aria-label="最佳 Duty 候選人">${duties.map((p) => `<button class="name" type="button" data-cat="duty" data-id="${p.id}" aria-pressed="false">${esc(p.name)}<small>${p.team}</small></button>`).join('')}</div>
+        ${msgBox('duty')}
       </section>
       <section class="cloudcard">
         <div class="section-head">${CROWN(2, '#4a8fd0')}<h2>最佳同事</h2><span class="pill">選 1 位</span></div>
@@ -131,10 +145,11 @@
         <input class="text search" id="q" type="search" placeholder="搜尋名字" aria-label="搜尋名字" enterkeyhint="search">
         <div class="tabs" role="group" aria-label="組別">${TEAMS.map((t) => `<button class="tab" type="button" data-pt="${t}" aria-pressed="${t === peerTeam}">${t}</button>`).join('')}</div>
         <div class="names" id="peerNames" role="group" aria-label="最佳同事候選人"></div>
+        ${msgBox('peer')}
       </section>
       <div class="ballotbar">
         <div class="picks"><div class="pick">最佳 Duty<b id="pd"></b></div><div class="pick">最佳同事<b id="pp"></b></div></div>
-        <button class="btn block pink" id="submitBtn" type="button" style="min-height:54px;font-size:19px">確認送出</button>
+        <button class="btn block pink" id="submitBtn" type="button" style="min-height:54px;font-size:19px">${hadEntry ? '確認修改' : '確認送出'}</button>
       </div>`;
     $('#backBtn').onclick = () => showCode();
     app.querySelectorAll('[data-cat="duty"]').forEach((b) => b.onclick = () => { pick.duty = +b.dataset.id; refresh(); });
@@ -147,8 +162,18 @@
     };
     $('#q').oninput = (e) => { peerQuery = e.target.value; drawPeers(); };
     app.querySelectorAll('[data-pt]').forEach((b) => b.onclick = () => { peerTeam = b.dataset.pt; peerQuery = ''; $('#q').value = ''; drawPeers(); });
+    app.querySelectorAll('[data-msg]').forEach((t) => {
+      const cat = t.dataset.msg; t.value = msg[cat];
+      const upd = () => { msg[cat] = t.value; $(`[data-count="${cat}"]`).textContent = t.value.length; };
+      t.addEventListener('input', upd); upd();
+    });
     function refresh() {
       app.querySelectorAll('[data-cat]').forEach((b) => b.setAttribute('aria-pressed', String(pick[b.dataset.cat] === +b.dataset.id)));
+      ['duty', 'peer'].forEach((cat) => {
+        const box = $(`[data-msgbox="${cat}"]`), p = pick[cat] && byId(pick[cat]);
+        box.hidden = !p;
+        if (p) $(`[data-msgto="${cat}"]`).textContent = `想對 ${p.name} 說的話`;
+      });
       const pd = $('#pd'), pp = $('#pp');
       pd.textContent = pick.duty ? byId(pick.duty).name : '還沒選'; pd.classList.toggle('empty', !pick.duty);
       pp.textContent = pick.peer ? byId(pick.peer).name : '還沒選'; pp.classList.toggle('empty', !pick.peer);
@@ -163,13 +188,14 @@
   function confirmSheet() {
     const back = document.createElement('div');
     back.className = 'sheet-back';
+    const quote = (t) => t.trim() ? `<p class="confirm-msg">「${esc(t.trim())}」</p>` : '<p class="confirm-msg muted">（沒有留言）</p>';
     back.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="cfTitle">
         ${IMG('heart', 'sticker-in')}
         <h2 id="cfTitle" style="font-size:24px">確認你神聖的一票</h2>
-        <div class="confirm-row"><span>最佳 Duty</span><b>${esc(byId(pick.duty).name)}</b></div>
-        <div class="confirm-row"><span>最佳同事</span><b>${esc(byId(pick.peer).name)}</b></div>
-        <p class="small muted">送出後就不能修改了。</p>
-        <div class="row" style="margin-top:8px"><button class="btn ghost" id="cfNo" type="button" style="flex:1">再想想</button><button class="btn pink" id="cfYes" type="button" style="flex:2">送出投票</button></div>
+        <div class="confirm-row"><span>最佳 Duty</span><b>${esc(byId(pick.duty).name)}</b></div>${quote(msg.duty)}
+        <div class="confirm-row"><span>最佳同事</span><b>${esc(byId(pick.peer).name)}</b></div>${quote(msg.peer)}
+        <p class="small muted">截止前都可以用員工編號回來修改。</p>
+        <div class="row" style="margin-top:8px"><button class="btn ghost" id="cfNo" type="button" style="flex:1">再想想</button><button class="btn pink" id="cfYes" type="button" style="flex:2">${hadEntry ? '送出修改' : '送出投票'}</button></div>
         <div class="msg err" id="cfMsg" role="alert"></div>
       </div>`;
     document.body.appendChild(back);
@@ -177,30 +203,30 @@
     back.addEventListener('click', (e) => { if (e.target === back) close(); });
     $('#cfNo').onclick = close; $('#cfYes').focus();
     $('#cfYes').onclick = async () => {
-      const b = $('#cfYes'); b.disabled = true; b.textContent = '送出中…';
-      const { data, error } = await sb.rpc('vote_cast', { p_code: code, p_duty: pick.duty, p_peer: pick.peer });
-      if (error) { b.disabled = false; b.textContent = '送出投票'; $('#cfMsg').textContent = '網路不穩，請確認連線後再按一次。'; return; }
-      if (data === 'ok') { close(); store.set('angelvote:done', true); return showDone(false); }
-      if (data === 'already') { close(); return showDone(true); }
-      b.disabled = false; b.textContent = '送出投票';
-      $('#cfMsg').textContent = { closed: '投票已經截止了。', busy: '輸錯太多次了，請過 10 分鐘再試，或找主管確認你的投票碼。' }[data] || '發生錯誤，請重新整理後再試一次。';
+      const b = $('#cfYes'), label = b.textContent; b.disabled = true; b.textContent = '送出中…';
+      const { data, error } = await sb.rpc('vote_submit', { p_code: code, p_duty: pick.duty, p_peer: pick.peer, p_duty_msg: msg.duty, p_peer_msg: msg.peer });
+      if (error) { b.disabled = false; b.textContent = label; $('#cfMsg').textContent = '網路不穩，請確認連線後再按一次。'; return; }
+      if (data === 'ok') { close(); return showDone(hadEntry); }
+      b.disabled = false; b.textContent = label;
+      $('#cfMsg').textContent = { closed: '投票已經截止了。', busy: '嘗試次數太多，請過 10 分鐘再試。', too_long: `留言最多 ${MAXMSG} 字。` }[data] || '發生錯誤，請重新整理後再試一次。';
     };
   }
 
-  function showDone(already) {
+  function showDone(edited) {
     view = 'done';
     code = '';
     app.innerHTML = `
       <section class="cloudcard center" style="margin-top:40px">
         ${deco(STAR(20), 'left:18px;top:20px', true)}${deco(SPARK(16), 'right:22px;top:26px', true)}${deco(HEART(20), 'right:34px;bottom:70px')}
         ${IMG('heart', 'done-art')}
-        <h2 class="title" style="font-size:30px">${already ? '這組碼已經投過囉' : '投票完成！'}</h2>
-        <p class="lead">${already ? '每人每個獎項只有一票，謝謝你的參與。' : '謝謝你神聖的一票。<br>每一份幫助都值得被看見，<br>每一份付出都值得被肯定。'}</p>
+        <h2 class="title" style="font-size:30px">${edited ? '已更新你的投票！' : '投票完成！'}</h2>
+        <p class="lead">謝謝你神聖的一票。<br>每一份幫助都值得被看見，<br>每一份付出都值得被肯定。</p>
+        <p class="small muted">截止前想修改，再用員工編號進來就可以。</p>
         <p style="margin-top:14px"><span class="mark">${DEADLINE}</span></p>
         <p style="margin-top:18px"><button class="btn ghost" id="homeBtn" type="button">回首頁</button></p>
       </section>
       <p class="signoff">Together We are Stronger!</p>`;
-    announce(already ? '這組碼已經投過' : '投票完成');
+    announce(edited ? '已更新投票' : '投票完成');
     $('#homeBtn').onclick = () => showIntro();
   }
 
