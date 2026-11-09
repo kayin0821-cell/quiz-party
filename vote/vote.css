@@ -268,7 +268,39 @@ table.codes-full tr:hover td { background: rgba(220, 239, 255, .45); }
 .msglist { margin-top: 14px; display: grid; gap: 14px; }
 .msggroup h4 { margin: 0 0 8px; font-weight: 400; font-size: 19px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .award-tag { font-size: 13px; background: var(--yellow); border-radius: 999px; padding: 2px 10px; }
-.msggroup blockquote { margin: 0 0 8px; padding: 10px 14px; background: var(--blue-soft); border-radius: 14px 18px 14px 18px; line-height: 1.7; overflow-wrap: anywhere; }
-.msggroup blockquote cite { display: block; font-style: normal; font-size: 13px; color: var(--ink-soft); margin-top: 4px; text-align: right; }
+.msggroup blockquote, .msgacc blockquote { margin: 0 0 8px; padding: 10px 14px; background: var(--blue-soft); border-radius: 14px 18px 14px 18px; line-height: 1.7; overflow-wrap: anywhere; }
+.msggroup blockquote cite, .msgacc blockquote cite { display: block; font-style: normal; font-size: 13px; color: var(--ink-soft); margin-top: 4px; text-align: right; }
 .admin-grid .col-right.no-sticky { position: static; max-height: none; overflow: visible; }
 @media (min-width: 980px) { .msglist { grid-template-columns: 1fr 1fr; align-items: start; } }
+
+/* 主持頁：投票期間的即時排行 */
+.rank-h { margin: 14px 0 2px; font-size: 18px; }
+.liverank { list-style: none; padding: 0; margin: 4px 0 0; }
+.liverank li { display: grid; grid-template-columns: 22px minmax(5.5em, 9em) 1fr 30px; align-items: center; gap: 10px; padding: 6px 8px; border-radius: 10px; }
+.liverank li.in { background: var(--yellow-soft); }
+.liverank .n { color: var(--ink-soft); font-variant-numeric: tabular-nums; text-align: right; }
+.liverank .who { font-size: 17px; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.liverank .who small { margin-left: 6px; font-size: 13px; color: var(--ink-soft); }
+.liverank .bar { height: 10px; border-radius: 999px; background: var(--blue-soft); overflow: hidden; }
+.liverank .bar span { display: block; height: 100%; border-radius: 999px; background: #8db6e6; transition: width .5s ease; }
+.liverank li.in .bar span { background: var(--gold); }
+.liverank .v { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+@media (prefers-reduced-motion: reduce) { .liverank .bar span { transition: none; } }
+
+/* 主持頁：留言改成可展開的清單，避免頁面越拉越長 */
+.msgacc { margin-top: 8px; border-top: 1.5px dashed var(--line); }
+.msgacc details { border-bottom: 1.5px dashed var(--line); }
+.msgacc summary { display: flex; align-items: center; gap: 10px; padding: 10px 6px; cursor: pointer; list-style: none; border-radius: 10px; }
+.msgacc summary::-webkit-details-marker { display: none; }
+.msgacc summary:hover { background: rgba(220, 239, 255, .45); }
+.msgacc summary:focus-visible { outline: 3px solid var(--pink); outline-offset: 2px; }
+.msgacc summary .to { font-size: 17px; }
+.msgacc summary .cnt { margin-left: auto; font-size: 14px; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+.msgacc summary::after { content: ''; width: 8px; height: 8px; border-right: 2px solid var(--ink-soft); border-bottom: 2px solid var(--ink-soft); transform: rotate(45deg); margin: 0 6px 4px 4px; transition: transform .2s; }
+.msgacc details[open] summary::after { transform: rotate(-135deg); margin-bottom: -2px; }
+.msgacc .msgs { display: grid; gap: 8px; padding: 2px 6px 12px; }
+.msgacc .msgs blockquote { margin: 0; }
+@media (prefers-reduced-motion: reduce) { .msgacc summary::after { transition: none; } }
+/* 截止後右欄不再固定，投票狀況表改在自己的框裡捲動，不把整頁拉長 */
+.admin-grid .col-right.no-sticky .codes-wrap { max-height: 60vh; overflow: auto; }
+.admin-grid .col-right.no-sticky table.codes-full th { position: sticky; top: 0; background: var(--cream); z-index: 1; }

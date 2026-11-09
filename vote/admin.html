@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=9">
+<link rel="stylesheet" href="vote.css?v=10">
 </head>
 <body class="admin">
 <main class="wrap" id="app"></main>
@@ -21,7 +21,7 @@
 <script src="../quiz.js?v=4"></script>
 <script>
 (function () {
-  const { sb, $, esc, toast, errMsg, sfx, unlockAudio } = QP;
+  const { sb, $, esc, toast, errMsg, sfx, unlockAudio, store } = QP;
   const app = $('#app');
   const DOMAIN = '@players.taiwan3d.app';
   const VOTE_URL = new URL('./', location.href).href;
@@ -81,7 +81,7 @@
     box.innerHTML = `
       <div class="row spread"><h2>投票狀況</h2>
         <div class="row"><button class="btn ghost small" id="copyPending" type="button">複製還沒投的名單</button></div></div>
-      <p class="small muted" style="margin:6px 0 12px">每 20 秒自動更新${lastSync ? `・最後更新 ${String(lastSync.getHours()).padStart(2, '0')}:${String(lastSync.getMinutes()).padStart(2, '0')}:${String(lastSync.getSeconds()).padStart(2, '0')}` : ''}。留言在左邊「留言」查看。</p>
+      <p class="small muted" style="margin:6px 0 12px">每 20 秒自動更新${lastSync ? `・最後更新 ${String(lastSync.getHours()).padStart(2, '0')}:${String(lastSync.getMinutes()).padStart(2, '0')}:${String(lastSync.getSeconds()).padStart(2, '0')}` : ''}。投給誰看「目前排行」，留言看「留言」。</p>
       <div class="row spread" style="align-items:center">
         <div class="tabs" role="group" aria-label="組別" style="padding-bottom:6px">${teams.map((t) => `<button class="tab" type="button" data-ct="${t}" aria-pressed="${t === codeTeam}">${t}</button>`).join('')}</div>
         <label class="row small" style="gap:6px;cursor:pointer"><input type="checkbox" id="onlyPending" ${onlyPending ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--pink)"> 只看還沒投的</label>
@@ -115,10 +115,12 @@
     const m = $('#meterBar'); if (m) m.style.width = (voted / total * 100).toFixed(1) + '%';
     const pn = $('#pendingN'); if (pn) pn.textContent = total - voted;
     drawStatus();
+    if (st.is_open) loadLiveRank();
   }
 
   // ---------- 留言（投票期間也看得到，截止後可篩得獎者） ----------
   let msgScope = 'win', hideSender = false, entries = null, results = null;
+  let msgOpen = new Set();
   function msgItems() {
     const winIds = new Set([...(results ? results.dutyWin : []), ...(results ? results.peerWin : [])].map((p) => p.id));
     const items = [];
@@ -150,8 +152,11 @@
       ${st.is_open ? `<p class="small muted" style="margin:0 0 6px">投票進行中，先列出目前所有留言（同仁看不到）。截止後可以只看得獎者。</p>` : ''}
       <p class="small muted" style="margin:0 0 10px">共 ${items.length} 則留言，給 ${byTo.size} 位。投票人 ${(entries || []).length} 位。</p>
       <button class="btn pink small" id="dlBtn" type="button" ${items.length ? '' : 'disabled'}>下載 Excel（${hideSender ? '不含' : '含'}留言人）</button>
-      <div class="msglist">${[...byTo.entries()].map(([k, list]) => `<div class="msggroup"><h4><span class="award-tag">${list[0].award}</span>${esc(list[0].to)}<span class="small muted">　${esc(list[0].team)}・${list.length} 則</span></h4>
-        ${list.map((x) => `<blockquote>${esc(x.msg)}<cite>${hideSender ? '匿名' : `— ${esc(x.from)}（${esc(x.fromTeam)}）`}</cite></blockquote>`).join('')}</div>`).join('') || '<p class="muted">目前沒有留言。</p>'}</div>`;
+      ${byTo.size ? `<div class="row spread" style="margin-top:14px"><span class="small muted">點名字展開留言</span><button class="btn ghost small" id="msgAll" type="button">${byTo.size && [...byTo.keys()].every((k) => msgOpen.has(k)) ? '全部收合' : '全部展開'}</button></div>` : ''}
+      <div class="msgacc">${[...byTo.entries()].map(([k, list]) => `<details data-k="${esc(k)}" ${msgOpen.has(k) ? 'open' : ''}><summary><span class="award-tag">${list[0].award}</span><span class="to">${esc(list[0].to)}</span><span class="small muted">${esc(list[0].team)}</span><span class="cnt">${list.length} 則</span></summary>
+        <div class="msgs">${list.map((x) => `<blockquote>${esc(x.msg)}<cite>${hideSender ? '匿名' : `— ${esc(x.from)}（${esc(x.fromTeam)}）`}</cite></blockquote>`).join('')}</div></details>`).join('') || '<p class="muted">目前沒有留言。</p>'}</div>`;
+    box.querySelectorAll('details[data-k]').forEach((d) => d.ontoggle = () => { d.open ? msgOpen.add(d.dataset.k) : msgOpen.delete(d.dataset.k); const ma = $('#msgAll'); if (ma) ma.textContent = [...byTo.keys()].every((k) => msgOpen.has(k)) ? '全部收合' : '全部展開'; });
+    const mAll = $('#msgAll'); if (mAll) mAll.onclick = () => { const all = [...byTo.keys()].every((k) => msgOpen.has(k)); msgOpen = all ? new Set() : new Set(byTo.keys()); drawMessages(); };
     const mr = $('#msgReload'); if (mr) mr.onclick = loadMessages;
     box.querySelectorAll('[data-scope]').forEach((b) => b.onclick = () => { msgScope = b.dataset.scope; drawMessages(); });
     $('#hideSender').onchange = (e) => { hideSender = e.target.checked; drawMessages(); };
@@ -181,8 +186,8 @@
       </section>
 
       <section class="card">
-        <h2>結果</h2>
-        ${st.is_open ? `<p class="muted">投票截止後才能看結果，也才能進入揭曉模式。</p>` :
+        ${st.is_open ? '' : '<h2>結果</h2>'}
+        ${st.is_open ? `<div id="liveRank"></div>` :
           `<p class="muted small">結果只有主持帳號看得到。聚餐時按「揭曉模式」，用手機或投影一個一個公布。</p>
            <div class="row" style="margin-top:10px"><button class="btn pink" id="revealBtn" type="button">進入揭曉模式</button><button class="btn ghost" id="resultBtn" type="button">先看完整票數</button></div>
            <div class="msg info" style="margin-top:14px">${st.published ? '同仁的投票頁面<b>正在顯示得獎名單</b>（不含票數）。' : '同仁頁面還沒公布得獎名單。揭曉模式播到最後一頁時會自動公布，也可以手動公布。'}</div>
@@ -190,13 +195,14 @@
            <div id="resultBox"></div>`}
       </section>
 
+      ${st.is_open ? `<section class="card"><h2>留言</h2><div id="msgBox"></div></section>` : ''}
+
       <section class="card">
         <h2>清空重來</h2>
         <p class="small muted" style="margin:6px 0 10px">「重新開放投票」只是延長投票、保留已投的票和留言。要把所有票、留言和「已投票」紀錄歸零（例如正式開始前清掉試投票），請按下面的按鈕。</p>
         <button class="btn small pink" id="resetBtn" type="button">清空所有票，重新投票</button>
       </section>
 
-      ${st.is_open ? `<section class="card"><h2>留言</h2><div id="msgBox"></div></section>` : ''}
       </div><div class="col-right${st.is_open ? '' : ' no-sticky'}">
       ${st.is_open ? '' : `<section class="card"><h2>留言</h2><div id="msgBox"></div></section>`}
       <section class="card" id="codesCard"></section>
@@ -218,6 +224,7 @@
     };
     drawStatus();
     loadMessages();
+    if (st.is_open) loadLiveRank();
     if (!timer) timer = setInterval(syncStatus, 20000);
     const rb = $('#resultBtn'); if (rb) rb.onclick = showResults;
     const rv = $('#revealBtn'); if (rv) rv.onclick = startReveal;
@@ -229,10 +236,46 @@
     };
   }
 
+  // ---------- 投票期間的即時排行（只有主持帳號看得到） ----------
+  let rankHidden = !!store.get('vote.hideRank'), rankAll = false, liveRank = null;
+  async function loadLiveRank() {
+    if (!$('#liveRank') || rankHidden) return drawLiveRank();
+    const r = await getResults(true); if (r) liveRank = r;
+    drawLiveRank();
+  }
+  function drawLiveRank() {
+    const box = $('#liveRank'); if (!box) return;
+    const head = `<div class="row spread"><h2>目前排行</h2><button class="btn ghost small" id="rankToggle" type="button">${rankHidden ? '顯示排行' : '隱藏排行'}</button></div>`;
+    if (rankHidden) {
+      box.innerHTML = `${head}<p class="muted small" style="margin:8px 0 0">排行已隱藏。投影或分享螢幕時可以先藏起來。</p>`;
+    } else if (!liveRank) {
+      box.innerHTML = `${head}<p class="muted small">載入中…</p>`;
+    } else {
+      const r = liveRank;
+      const rows = (arr, wins, n) => {
+        if (!arr.some((p) => p.votes)) return '<p class="muted small" style="margin:4px 0 0">還沒有人得票</p>';
+        const ids = new Set(wins.map((p) => p.id)), max = Math.max(1, ...arr.map((p) => p.votes));
+        const shown = (rankAll ? arr : arr.slice(0, Math.max(n, wins.length))).filter((p) => p.votes);
+        let rank = 0, prev = null;
+        return `<ol class="liverank">${shown.map((p, i) => { if (p.votes !== prev) { rank = i + 1; prev = p.votes; }
+          return `<li class="${ids.has(p.id) ? 'in' : ''}"><span class="n">${rank}</span><span class="who">${esc(p.name)}<small>${esc(p.team)}</small></span><span class="bar"><span style="width:${(p.votes / max * 100).toFixed(1)}%"></span></span><span class="v">${p.votes}</span></li>`; }).join('')}</ol>`;
+      };
+      const more = r.duty.filter((p) => p.votes).length > 3 || r.peer.length > Math.max(5, r.peerWin.length);
+      box.innerHTML = `${head}
+        <p class="small muted" style="margin:6px 0 4px">已投 ${r.voted} 人。排名隨時會變，每 20 秒自動更新；黃色是目前在得獎範圍內的人。</p>
+        <h3 class="rank-h">最佳 Duty <span class="small muted">取 1 名${r.dutyWin.length > 1 ? `，目前同票 ${r.dutyWin.length} 人` : ''}</span></h3>${rows(r.duty, r.dutyWin, 3)}
+        <h3 class="rank-h">最佳同事 <span class="small muted">取 5 名${r.peerWin.length > 5 ? `，目前第 5 名同票 ${r.peerWin.length} 人並列` : ''}</span></h3>${rows(r.peer, r.peerWin, 5)}
+        ${more ? `<button class="btn ghost small" id="rankAll" type="button" style="margin-top:10px">${rankAll ? '只看前幾名' : '看完整排行'}</button>` : ''}
+        <p class="small muted" style="margin:12px 0 0">截止後才能進入揭曉模式。</p>`;
+      const ra = $('#rankAll'); if (ra) ra.onclick = () => { rankAll = !rankAll; drawLiveRank(); };
+    }
+    $('#rankToggle').onclick = () => { rankHidden = !rankHidden; store.set('vote.hideRank', rankHidden); rankHidden ? drawLiveRank() : loadLiveRank(); };
+  }
+
   // ---------- 結果 ----------
-  async function getResults() {
+  async function getResults(quiet) {
     const { data, error } = await sb.rpc('vote_admin_results');
-    if (error) { toast(String(error.message).includes('still_open') ? '請先截止投票' : errMsg(error)); return null; }
+    if (error) { if (quiet) return null; toast(String(error.message).includes('still_open') ? '請先截止投票' : errMsg(error)); return null; }
     const duty = data.duty, peer = data.peer;
     const dTop = duty.length && duty[0].votes > 0 ? duty[0].votes : 0;
     const dutyWin = dTop ? duty.filter((p) => p.votes === dTop) : [];
