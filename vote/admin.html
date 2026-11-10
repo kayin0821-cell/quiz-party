@@ -10,7 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@600&family=Huninn&family=Noto+Sans+TC:wght@400;700&display=swap">
 <link rel="stylesheet" href="../quiz.css?v=4">
-<link rel="stylesheet" href="vote.css?v=10">
+<link rel="stylesheet" href="vote.css?v=11">
 </head>
 <body class="admin">
 <main class="wrap" id="app"></main>
@@ -25,6 +25,7 @@
   const app = $('#app');
   const DOMAIN = '@players.taiwan3d.app';
   const VOTE_URL = new URL('./', location.href).href;
+  const DEADLINE_TXT = '11/12（四）23:59';
   let user = null, st = null;
 
   function topbar() {
@@ -70,7 +71,9 @@
   }
 
   // ---------- 投票狀況（即時） ----------
-  let codeTeam = '全部', onlyPending = false, lastSync = null, timer = null;
+  let codeTeam = '全部', onlyPending = false, lastSync = null, timer = null, showPins = false;
+  const copiedPins = new Set();
+  const pinText = (p) => `【2026 諮詢科小天使票選】\n${p.name} 你好，這是你的投票碼：${p.pin}\n投票網頁：${VOTE_URL}\n輸入員工編號 CSC 後 5 碼＋投票碼就能投票，${DEADLINE_TXT}前都可以回來修改。\n投票碼請不要給別人喔！`;
   const hm = (t) => { const d = new Date(t); return `${d.getMonth() + 1}/${d.getDate()} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
   function drawStatus() {
     const box = $('#codesCard'); if (!box) return;
@@ -80,7 +83,7 @@
     const votedN = list.filter((p) => p.has_voted).length;
     box.innerHTML = `
       <div class="row spread"><h2>投票狀況</h2>
-        <div class="row"><button class="btn ghost small" id="copyPending" type="button">複製還沒投的名單</button></div></div>
+        <div class="row"><button class="btn ghost small" id="togglePins" type="button" aria-pressed="${showPins}">${showPins ? '隱藏投票碼' : '顯示投票碼'}</button><button class="btn ghost small" id="copyPending" type="button">複製還沒投的名單</button></div></div>
       <p class="small muted" style="margin:6px 0 12px">每 20 秒自動更新${lastSync ? `・最後更新 ${String(lastSync.getHours()).padStart(2, '0')}:${String(lastSync.getMinutes()).padStart(2, '0')}:${String(lastSync.getSeconds()).padStart(2, '0')}` : ''}。投給誰看「目前排行」，留言看「留言」。</p>
       <div class="row spread" style="align-items:center">
         <div class="tabs" role="group" aria-label="組別" style="padding-bottom:6px">${teams.map((t) => `<button class="tab" type="button" data-ct="${t}" aria-pressed="${t === codeTeam}">${t}</button>`).join('')}</div>
@@ -88,18 +91,25 @@
       </div>
       <p class="small muted" style="margin:4px 0 8px">顯示 ${list.length} 人・已投 ${votedN} 人・未投 ${list.length - votedN} 人</p>
       <div class="codes-wrap"><table class="codes codes-full">
-        <thead><tr><th>組別</th><th>姓名</th><th>狀態</th><th>最後投票時間</th></tr></thead>
-        <tbody>${list.map((p) => `<tr>
+        <thead><tr><th>組別</th><th>姓名</th><th>狀態</th><th>最後投票時間</th><th>投票碼</th><th></th></tr></thead>
+        <tbody>${list.map((p) => `<tr class="${copiedPins.has(p.id) ? 'copied' : ''}">
           <td class="small muted">${esc(p.team)}</td><td>${esc(p.name)}</td>
-          <td class="small">${p.has_voted ? '<span class="tag-voted">已投</span>' : '<span class="tag-pending">未投</span>'}</td>
-          <td class="small muted">${p.voted_at ? hm(p.voted_at) : ''}</td></tr>`).join('') || '<tr><td colspan="4" class="muted">沒有符合的同仁</td></tr>'}
+          <td class="small">${p.has_voted ? '<span class="tag-voted">已投</span>' : '<span class="tag-pending">未投</span>'}${p.locked ? ' <span class="tag-pending" title="投票碼錯 5 次，暫停 1 小時">暫停中</span>' : ''}</td>
+          <td class="small muted">${p.voted_at ? hm(p.voted_at) : ''}</td>
+          <td class="pin-cell">${p.pin ? (showPins ? esc(p.pin) : '••••') : ''}</td>
+          <td>${p.pin ? `<button class="btn ghost small" type="button" data-pin="${p.id}">${copiedPins.has(p.id) ? '已複製' : '複製'}</button>` : ''}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">沒有符合的同仁</td></tr>'}
         </tbody></table></div>`;
     box.querySelectorAll('[data-ct]').forEach((b) => b.onclick = () => { codeTeam = b.dataset.ct; drawStatus(); });
     $('#onlyPending').onchange = (e) => { onlyPending = e.target.checked; drawStatus(); };
+    $('#togglePins').onclick = () => { showPins = !showPins; drawStatus(); };
+    box.querySelectorAll('[data-pin]').forEach((b) => b.onclick = () => {
+      const p = ppl.find((x) => String(x.id) === b.dataset.pin); if (!p) return;
+      copiedPins.add(p.id); copy(pinText(p), `已複製 ${p.name} 的投票碼通知`); drawStatus();
+    });
     $('#copyPending').onclick = () => {
       const pend = ppl.filter((p) => !p.has_voted && (codeTeam === '全部' || p.team === codeTeam));
       if (!pend.length) return toast('全部都投完了！');
-      const text = `【小天使票選】還沒投票的夥伴（${pend.length} 人）：\n` + groups(pend).map(([t, l]) => `${t}：${l.map((p) => p.name).join('、')}`).join('\n') + `\n投票網頁 ${VOTE_URL}（輸入員編 CSC 後 5 碼）`;
+      const text = `【小天使票選】還沒投票的夥伴（${pend.length} 人）：\n` + groups(pend).map(([t, l]) => `${t}：${l.map((p) => p.name).join('、')}`).join('\n') + `\n投票網頁 ${VOTE_URL}（輸入員編 CSC 後 5 碼＋投票碼）`;
       copy(text, '已複製還沒投的名單');
     };
   }
@@ -114,6 +124,7 @@
     const v = $('#votedN'); if (v) v.textContent = voted;
     const m = $('#meterBar'); if (m) m.style.width = (voted / total * 100).toFixed(1) + '%';
     const pn = $('#pendingN'); if (pn) pn.textContent = total - voted;
+    const pc = $('#pctN'); if (pc) pc.textContent = Math.round(voted / total * 100) + '%';
     drawStatus();
     if (st.is_open) loadLiveRank();
   }
@@ -179,7 +190,7 @@
         <div class="row spread"><h2>${st.is_open ? '投票進行中' : '投票已截止'}</h2>
           <button class="btn small ${st.is_open ? 'ghost' : ''}" id="toggleBtn" type="button">${st.is_open ? '截止投票' : '重新開放投票'}</button></div>
         ${st.close_at ? `<p class="small muted" style="margin:6px 0 0">${st.is_open ? '將於' : '已於'} ${closeText(st.close_at)} 自動截止</p>` : ''}
-        <p style="margin:12px 0 6px">已投票 <b style="font-size:26px" id="votedN">${voted}</b> ／ ${total} 人</p>
+        <p style="margin:12px 0 6px">已投票 <b style="font-size:26px" id="votedN">${voted}</b> ／ ${total} 人<span class="pct">投票率 <b id="pctN">${Math.round(voted / total * 100)}%</b></span></p>
         <div class="meter" role="progressbar" aria-valuemin="0" aria-valuemax="${total}"><span id="meterBar" style="width:${(voted / total * 100).toFixed(1)}%"></span></div>
         <p class="small muted" style="margin:8px 0 0">還沒投 <span id="pendingN">${total - voted}</span> 人，可在右邊勾「只看還沒投的」提醒他們。</p>
         <div class="row" style="margin-top:14px"><button class="btn ghost small" id="reloadBtn" type="button">重新整理</button></div>

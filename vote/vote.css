@@ -304,3 +304,13 @@ table.codes-full tr:hover td { background: rgba(220, 239, 255, .45); }
 /* 截止後右欄不再固定，投票狀況表改在自己的框裡捲動，不把整頁拉長 */
 .admin-grid .col-right.no-sticky .codes-wrap { max-height: 60vh; overflow: auto; }
 .admin-grid .col-right.no-sticky table.codes-full th { position: sticky; top: 0; background: var(--cream); z-index: 1; }
+
+/* 投票碼欄位 */
+.field-label { display: block; margin-top: 18px; font-size: 17px; color: var(--ink); text-align: left; }
+.pinbox { margin-top: 8px; }
+.pinbox input { letter-spacing: .5em; padding-left: .5em; }
+
+/* 主持頁：投票率與投票碼 */
+.pct { margin-left: 14px; padding: 2px 12px; border-radius: 999px; background: var(--yellow-soft); font-size: 15px; color: var(--ink-soft); }
+.pct b { font-size: 20px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.pin-cell { font-variant-numeric: tabular-nums; letter-spacing: .15em; }
